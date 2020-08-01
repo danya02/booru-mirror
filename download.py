@@ -229,7 +229,7 @@ if __name__ == '__main__':
 #    threading.Thread(target=prefetch).start()
     import tqdm
     print('Putting jobs into queue...')
-    for i in tqdm.tqdm(range(1693070, 3488797)):
+    for i in tqdm.tqdm(range(1, 3488797)):
         JOBS.put(i)
     print(JOBS.qsize())
     def dl():
@@ -240,7 +240,11 @@ if __name__ == '__main__':
                 print('FAILED getting new job')
                 return
             print('getting', post)
-            create_post(get_post(post))
+            result = create_post(get_post(post))
+            if result is None:
+                print(post, 'is unavailable')
+                UnavailablePost.get_or_create(id=post)
+                
 #    for i in range(15):
 #        threading.Thread(target=dl).start()
     threading.Thread(target=put_into_db).start()
