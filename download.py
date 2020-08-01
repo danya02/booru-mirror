@@ -136,6 +136,7 @@ def create_post(post, and_comments=True, and_notes=True, and_download=True):
 def download_file(url):
     local_filename = url.split('/')[-1]
     prefix = local_filename[:2]+'/'+local_filename[:4]
+    local_filename = prefix + '/' + local_filename
     try:
         os.makedirs(IMAGE_DIR+prefix+'/')
     except FileExistsError:
@@ -146,15 +147,20 @@ def download_file(url):
         except:
             traceback.print_exc()
             return
-        with open(IMAGE_DIR+prefix+'/'+local_filename, 'wb') as f:
+        with open(IMAGE_DIR+local_filename, 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192): 
                 #if chunk: 
                 f.write(chunk)
+    
     return local_filename
 
 def download(p):
     print('Downloading content for post', p.id)
-    download_file(p.url)
+    rel_path = download_file(p.url)
+    content = Content()
+    content.post = p
+    content.path = rel_path
+    save(content, True)
 
 def create_comments(post):
     # the API for comments is broken: the "created_at" time is always the current server time, and it's even in the wrong format.
@@ -229,7 +235,7 @@ if __name__ == '__main__':
 #    threading.Thread(target=prefetch).start()
     import tqdm
     print('Putting jobs into queue...')
-    for i in tqdm.tqdm(range(1, 3488797)):
+    for i in tqdm.tqdm(range(Content.select(Content.post_id).order_by(-Content.id).scalar(), 3488797)):
         JOBS.put(i)
     print(JOBS.qsize())
     def dl():

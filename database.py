@@ -7,6 +7,11 @@ SITE = 'rule34.xxx'
 db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
 
 
+#import logging
+#logger = logging.getLogger('peewee')
+#logger.addHandler(logging.StreamHandler())
+#logger.setLevel(logging.DEBUG)
+
 class MyModel(Model):
     class Meta:
         database = db
@@ -65,20 +70,20 @@ class Post(MyModel):
     parent = ForeignKeyField('self', backref='children', null=True)
 
 class Content(MyModel):
-    post = ForeignKeyField(Post, unique=True, backref='content')
+    post = ForeignKeyField(Post, backref='content')
     path = CharField(unique=True)
     def is_modified(self):
         return len(self.mods)!=0
+
+class Modification(MyModel):
+    code = CharField(unique=True, index=True)
+    description = TextField()
 
 class ContentModification(MyModel):
     content = ForeignKeyField(Content, backref='mods', index=True)
     mod = ForeignKeyField(Modification, backref='content', index=True)
     class Meta:
         primary_key = CompositeKey('content', 'mod')
-
-class Modification(MyModel):
-    code = CharField(unique=True, index=True)
-    description = TextField()
 
 class PostTag(MyModel):
     tag = ForeignKeyField(Tag, backref='posts')
