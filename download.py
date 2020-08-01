@@ -4,6 +4,7 @@ from database import *
 import datetime
 import queue
 import traceback
+import os
 CACHE = dict()
 
 LAST = 0
@@ -134,14 +135,18 @@ def create_post(post, and_comments=True, and_notes=True, and_download=True):
 
 def download_file(url):
     local_filename = url.split('/')[-1]
-    first_part = local_filename[:2]
+    prefix = local_filename[:2]+'/'+local_filename[:4]
+    try:
+        os.makedirs(IMAGE_DIR+prefix+'/')
+    except FileExistsError:
+        pass
     with requests.get(url, stream=True) as r:
         try:
             r.raise_for_status()
         except:
             traceback.print_exc()
             return
-        with open(IMAGE_DIR+first_part+'/'+local_filename, 'wb') as f:
+        with open(IMAGE_DIR+prefix+'/'+local_filename, 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192): 
                 #if chunk: 
                 f.write(chunk)
@@ -224,7 +229,7 @@ if __name__ == '__main__':
 #    threading.Thread(target=prefetch).start()
     import tqdm
     print('Putting jobs into queue...')
-    for i in tqdm.tqdm(range(1611650, 3488797)):
+    for i in tqdm.tqdm(range(1693070, 3488797)):
         JOBS.put(i)
     print(JOBS.qsize())
     def dl():
