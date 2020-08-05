@@ -8,8 +8,7 @@ import os
 CACHE = dict()
 
 LAST = 0
-IMAGE_DIR = '/media/danya/C0DC0839DC082BEA/booru/data/'
-INTO_DB = queue.Queue()
+INTO_DB = queue.Queue(1000)
 
 def put_into_db():
     while 1:
@@ -235,7 +234,7 @@ if __name__ == '__main__':
 #    threading.Thread(target=prefetch).start()
     import tqdm
     print('Putting jobs into queue...')
-    for i in tqdm.tqdm(range(Content.select(Content.post_id).order_by(-Content.id).scalar(), 3488797)):
+    for i in tqdm.tqdm(range(Content.select(Content.post_id).order_by(-Content.id).scalar()-50, 3488797)):
         JOBS.put(i)
     print(JOBS.qsize())
     def dl():
@@ -251,7 +250,8 @@ if __name__ == '__main__':
                 print(post, 'is unavailable')
                 UnavailablePost.get_or_create(id=post)
                 
-#    for i in range(15):
-#        threading.Thread(target=dl).start()
-    threading.Thread(target=put_into_db).start()
-    dl()
+    for i in range(9):
+        threading.Thread(target=dl).start()
+    for i in range(3):
+        threading.Thread(target=put_into_db).start()
+    put_into_db()
