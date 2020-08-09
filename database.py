@@ -1,11 +1,11 @@
 from peewee import *
 import datetime
 
-SITE = 'rule34.xxx'
-IMAGE_DIR = '/media/danya/C0DC0839DC082BEA/booru/data/'
+SITE = 'safebooru.org'
+IMAGE_DIR = './data-dir/'
 
-#db = SqliteDatabase(SITE+'.db', timeout=600)
-db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
+db = SqliteDatabase(SITE+'.db', timeout=600)
+#db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
 
 
 #import logging

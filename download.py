@@ -14,6 +14,8 @@ def put_into_db():
     while 1:
         try:
             model, force = INTO_DB.get(timeout=5)
+        except KeyboardInterrupt:
+            return
         except:
             print('==== TIMEOUT ====')
             continue
@@ -112,7 +114,7 @@ def create_post(post, and_comments=True, and_notes=True, and_download=True):
         rat, _ = Rating.get_or_create(value=post['rating'])
         p.rating = rat
 
-        p.score = int(post['score'])
+        p.score = int(post['score'] or 0) # TODO: on safebooru.org, this value is always empty, even though the post has a non-zero score -- fetch this value from elsewhere 
         if post['parent_id']:
             p.parent = create_post(get_post(int(post['parent_id'])))
         
@@ -234,7 +236,7 @@ if __name__ == '__main__':
 #    threading.Thread(target=prefetch).start()
     import tqdm
     print('Putting jobs into queue...')
-    for i in tqdm.tqdm(range(Content.select(Content.post_id).order_by(-Content.id).scalar()-50, 3488797)):
+    for i in tqdm.tqdm(range( (Content.select(Content.post_id).order_by(-Content.id).scalar() or 50)-50, 3488797)):
         JOBS.put(i)
     print(JOBS.qsize())
     def dl():
@@ -255,3 +257,4 @@ if __name__ == '__main__':
     for i in range(3):
         threading.Thread(target=put_into_db).start()
     put_into_db()
+
