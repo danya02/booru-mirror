@@ -13,7 +13,8 @@ INTO_DB = queue.Queue(1000)
 def put_into_db():
     while 1:
         try:
-            model, force = INTO_DB.get(timeout=5)
+            model, force, on_done = INTO_DB.get(timeout=600)
+        except KeyboardInterrupt: return
         except:
             print('==== TIMEOUT ====')
             continue
@@ -23,10 +24,11 @@ def put_into_db():
             print('        Current qsize:', INTO_DB.qsize())
         except:
             print('UNIQUE CONSTRAINT FAILED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        on_done()
         INTO_DB.task_done()
 
-def save(model, force_insert=False):
-    INTO_DB.put((model, force_insert))
+def save(model, force_insert=False, on_done=lambda: None):
+    INTO_DB.put((model, force_insert, on_done))
 
 def real_fetch(url, and_cache=True):
 #    print('Downloading', url)
@@ -115,12 +117,14 @@ def create_post(post, and_comments=True, and_notes=True, and_download=True):
         p.score = int(post['score'])
         if post['parent_id']:
             p.parent = create_post(get_post(int(post['parent_id'])))
+       
+        def insert_tags():
+            for tag in post['tags'].split():
+                tag_row, _ = Tag.get_or_create(name=tag)
+                post_tag = PostTag.get_or_create(post=p, tag=tag_row)
         
-        save(p, force_insert=create)
+        save(p, force_insert=create, on_done=insert_tags)
         
-        for tag in post['tags'].split():
-            tag_row, _ = Tag.get_or_create(name=tag)
-            post_tag = PostTag.get_or_create(post=p, tag=tag_row)
     if and_comments:
         print('Creating comments')
         create_comments(p) 
@@ -234,13 +238,17 @@ if __name__ == '__main__':
 #    threading.Thread(target=prefetch).start()
     import tqdm
     print('Putting jobs into queue...')
-    for i in tqdm.tqdm(range(Content.select(Content.post_id).order_by(-Content.id).scalar()-50, 3488797)):
-        JOBS.put(i)
+#    for i in tqdm.tqdm(range(Content.select(Content.post_id).order_by(-Content.id).scalar()-50, 3488797)):
+#        JOBS.put(i)
+#    for i in db.execute_sql('SELECT post.id FROM post where post.id not in (select content.post_id from content union select unavailablepost.id from unavailablepost);'):
+#        print(i)
+#        JOBS.put(int(i[0]))
     print(JOBS.qsize())
     def dl():
         while 1:
             try:
-                post = JOBS.get(timeout=5)
+                post_row = QueuedPost.select().order_by(fn.Rand()).get()
+                post = post_row.id
             except:
                 print('FAILED getting new job')
                 return
@@ -249,7 +257,17 @@ if __name__ == '__main__':
             if result is None:
                 print(post, 'is unavailable')
                 UnavailablePost.get_or_create(id=post)
-                
+            post_row.delete_instance()
+            try:
+                DownloadedPost.create(id=post)
+            except:
+                try:
+                    dp = DownloadedPost.get_by_id(post)
+                    dp.when = datetime.datetime.now()
+                    dp.save()
+                except:
+                    pass
+
     for i in range(9):
         threading.Thread(target=dl).start()
     for i in range(3):
