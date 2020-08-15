@@ -2,7 +2,7 @@ from peewee import *
 import datetime
 
 SITE = 'rule34.xxx'
-IMAGE_DIR = '/media/danya/C0DC0839DC082BEA/booru/data/'
+IMAGE_DIR = '/hugedata/rule34.xxx/'
 
 #db = SqliteDatabase(SITE+'.db', timeout=600)
 db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
@@ -115,4 +115,11 @@ class Note(MyModel):
     width = IntegerField()
     height = IntegerField()
 
-db.create_tables([User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification])
+class QueuedPost(MyModel):
+    id = IntegerField(primary_key=True, unique=True)
+    
+class DownloadedPost(MyModel):
+    id = IntegerField(primary_key=True, unique=True)
+    when = DateTimeField(default=datetime.datetime.now)
+
+db.create_tables([User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification, QueuedPost, DownloadedPost])
