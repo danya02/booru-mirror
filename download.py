@@ -38,16 +38,6 @@ def real_fetch(url, and_cache=True):
             CACHE[url] = b
     return b
 
-def prefetch():
-    ind = 0
-    while 1:
-        ind += 1
-        ind = max(ind, LAST+5)
-        real_fetch(f'https://{SITE}/index.php?page=dapi&s=post&q=index&id={ind}')
-        real_fetch(f'https://{SITE}/index.php?page=post&s=view&id={ind}&pid=0')
-        real_fetch(f'https://{SITE}/index.php?page=dapi&s=comment&q=index&post_id={ind}')
-        real_fetch(f'https://{SITE}/index.php?page=dapi&s=note&q=index&post_id={ind}')
-
 def fetch(url):
 #    try:
 #        return CACHE.pop(url)
@@ -65,7 +55,7 @@ def get_post(id):
 
 def get_author(id, name=None):
     try:
-        author = User.get(User.id == (id or 2))  # 2 is the ID for anonymous
+        author = User.get(User.id == (id or 642))  # 642 is the ID for anonymous
         author.username = author.username or name
         save(author)
     except User.DoesNotExist:
@@ -142,6 +132,7 @@ def download_file(url):
         os.makedirs(IMAGE_DIR+prefix+'/')
     except FileExistsError:
         pass
+    size = 0
     with requests.get(url, stream=True) as r:
         try:
             r.raise_for_status()
@@ -151,16 +142,21 @@ def download_file(url):
         with open(IMAGE_DIR+local_filename, 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192): 
                 #if chunk: 
+                size += len(chunk)
                 f.write(chunk)
     
-    return local_filename
+    return local_filename, size
 
 def download(p):
+    if Content.get_or_none(Content.post == p) is not None:
+        return
     print('Downloading content for post', p.id)
-    rel_path = download_file(p.url)
+    rel_path, size = download_file(p.url)
     content = Content()
     content.post = p
     content.path = rel_path
+    content.original_size = size
+    content.current_size = size
     save(content, True)
 
 def create_comments(post):

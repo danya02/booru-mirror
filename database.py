@@ -73,6 +73,8 @@ class Post(MyModel):
 class Content(MyModel):
     post = ForeignKeyField(Post, backref='content')
     path = CharField(unique=True)
+    original_size = IntegerField(index=True, null=True) # nullable for backwards compatibility
+    current_size = IntegerField(index=True, null=True)
     def is_modified(self):
         return len(self.mods)!=0
 
