@@ -5,6 +5,7 @@
 	</head>
 	<body>
 		<h1>Post {{id}}</h1>
+                <p><a href="{{url_for('update_post', id=post.id)}}">Update post!</a></p>
 		<hr>
 		<p>Tags: {{tags}}</p>
                 {% if unavail %}

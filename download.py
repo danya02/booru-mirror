@@ -5,19 +5,20 @@ import datetime
 import queue
 import traceback
 import os
+import random
 CACHE = dict()
 
 LAST = 0
 INTO_DB = queue.Queue(1000)
 
-def put_into_db():
+def put_into_db(timeout=600):
     while 1:
         try:
-            model, force, on_done = INTO_DB.get(timeout=600)
+            model, force, on_done = INTO_DB.get(timeout=timeout)
         except KeyboardInterrupt: return
         except:
             print('==== TIMEOUT ====')
-            continue
+            return
         try:
             model.save(force_insert=force)
             print('        Inserted', repr(model))
@@ -232,6 +233,26 @@ def create_notes(post):
 
 JOBS = queue.Queue()
 
+def download_single(post_row):
+    post = post_row.id
+    print('getting', post)
+    result = create_post(get_post(post))
+    if result is None:
+        print(post, 'is unavailable')
+        UnavailablePost.get_or_create(id=post)
+    def accept():
+        post_row.delete_instance()
+        try:
+            DownloadedPost.create(id=post)
+        except:
+            try:
+                dp = DownloadedPost.get_by_id(post)
+                dp.when = datetime.datetime.now()                
+                dp.save()
+            except:
+                pass
+    INTO_DB.put((None, None, accept))
+
 if __name__ == '__main__':
     import concurrent.futures
     import threading
@@ -247,26 +268,12 @@ if __name__ == '__main__':
     def dl():
         while 1:
             try:
-                post_row = QueuedPost.select().order_by(fn.Rand()).get()
-                post = post_row.id
+                post_row = QueuedPost.select().where(QueuedPost.id >= random.choice(range(1, QueuedPost.select(fn.Max(QueuedPost.id)).scalar()))).get()
             except:
                 print('FAILED getting new job')
+                traceback.print_exc()
                 return
-            print('getting', post)
-            result = create_post(get_post(post))
-            if result is None:
-                print(post, 'is unavailable')
-                UnavailablePost.get_or_create(id=post)
-            post_row.delete_instance()
-            try:
-                DownloadedPost.create(id=post)
-            except:
-                try:
-                    dp = DownloadedPost.get_by_id(post)
-                    dp.when = datetime.datetime.now()
-                    dp.save()
-                except:
-                    pass
+            download_single(post_row)
 
     for i in range(9):
         threading.Thread(target=dl).start()

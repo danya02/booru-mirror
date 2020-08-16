@@ -1,4 +1,5 @@
 from database import *
+import download
 from flask import Flask, render_template, request, url_for, redirect, send_file
 import math
 app = Flask(__name__)
@@ -52,6 +53,13 @@ def view_post(id):
     for row in cursor.fetchall():
         tags = row[0]
     return render_template('post.html', post=post, tags=tags, unavail=UnavailablePost.get_or_none(UnavailablePost.id==id), content=Content.get_or_none(Content.post_id==id))
+
+@app.route('/post/<int:id>/update')
+def update_post(id):
+    download.download_single(QueuedPost(id=id))
+    download.put_into_db(timeout=1)
+    return redirect(url_for('view_post', id=id))
+
 
 @app.route('/content/<int:id>')
 def view_content(id):
