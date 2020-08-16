@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Post {{id}}</title>
+	</head>
+	<body>
+		<h1>Post {{id}}</h1>
+		<hr>
+		<p>Tags: {{tags}}</p>
+                {% if unavail %}
+                    <p>This post is unavailable as of {{unavail.first_detected_at.ctime()}}, reason is: {{unavail.reason}}</p>
+                {% endif %}
+                {% if content %}
+                    <p>This post has content: </p>
+                    <img src="{{url_for('view_content', id=content.id)}}"></img>
+                {% endif %}
+	</body>
+</html>
