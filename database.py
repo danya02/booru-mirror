@@ -8,10 +8,10 @@ IMAGE_DIR = '/hugedata/rule34.xxx/'
 db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
 
 
-#import logging
-#logger = logging.getLogger('peewee')
-#logger.addHandler(logging.StreamHandler())
-#logger.setLevel(logging.DEBUG)
+import logging
+logger = logging.getLogger('peewee')
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.DEBUG)
 
 class MyModel(Model):
     class Meta:
@@ -73,6 +73,8 @@ class Post(MyModel):
 class Content(MyModel):
     post = ForeignKeyField(Post, backref='content')
     path = CharField(unique=True)
+    original_length = IntegerField()
+    current_length = IntegerField()
     def is_modified(self):
         return len(self.mods)!=0
 
