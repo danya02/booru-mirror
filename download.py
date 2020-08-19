@@ -141,6 +141,7 @@ def download_file(url):
     local_filename = url.split('/')[-1]
     prefix = local_filename[:2]+'/'+local_filename[:4]
     local_filename = prefix + '/' + local_filename
+    size = 0
     try:
         os.makedirs(IMAGE_DIR+prefix+'/')
     except FileExistsError:
@@ -155,15 +156,17 @@ def download_file(url):
             for chunk in r.iter_content(chunk_size=8192): 
                 #if chunk: 
                 f.write(chunk)
+                size += len(chunk)
     
-    return local_filename
+    return local_filename, size
 
 def download(p):
     print('Downloading content for post', p.id)
-    rel_path = download_file(p.url)
+    rel_path, size = download_file(p.url)
     content = Content()
     content.post = p
     content.path = rel_path
+    content.current_size = content.original_size = size
     save(content, True)
 
 def create_comments(post):
@@ -268,7 +271,10 @@ if __name__ == '__main__':
     def dl():
         while 1:
             try:
-                post_row = QueuedPost.select().where(QueuedPost.id >= random.choice(range(1, QueuedPost.select(fn.Max(QueuedPost.id)).scalar()))).get()
+                if random.randint(1, 20)==1:
+                     post_row = QueuedPost.select().get()
+                else:
+                    post_row = QueuedPost.select().where(QueuedPost.id >= random.choice(range(1, QueuedPost.select(fn.Max(QueuedPost.id)).scalar()))).get()
             except:
                 print('FAILED getting new job')
                 traceback.print_exc()
