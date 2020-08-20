@@ -17,9 +17,14 @@ class MyModel(Model):
     class Meta:
         database = db
 
+class AccessLevel(MyModel):
+    name = CharField(unique=True)
+
 class User(MyModel):
     id = IntegerField(primary_key=True, unique=True)
     username = CharField(null=True)
+    level = ForeignKeyField(AccessLevel, null=True)
+    join_date = DateField(null=True)
 
 class Rating(MyModel):
     value = CharField(unique=True)
@@ -85,6 +90,7 @@ class Modification(MyModel):
 class ContentModification(MyModel):
     content = ForeignKeyField(Content, backref='mods', index=True)
     mod = ForeignKeyField(Modification, backref='content', index=True)
+    additional_data = CharField()
     class Meta:
         primary_key = CompositeKey('content', 'mod')
 
@@ -124,4 +130,4 @@ class DownloadedPost(MyModel):
     id = IntegerField(primary_key=True, unique=True)
     when = DateTimeField(default=datetime.datetime.now)
 
-db.create_tables([User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification, QueuedPost, DownloadedPost])
+db.create_tables([AccessLevel, User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification, QueuedPost, DownloadedPost])
