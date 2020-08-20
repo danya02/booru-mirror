@@ -2,6 +2,7 @@ from database import *
 import download
 from flask import Flask, render_template, request, url_for, redirect, send_file
 import math
+import optimize_img
 app = Flask(__name__)
 
 @app.route('/')
@@ -19,8 +20,9 @@ def search():
     def get_page(num):
         return url_for('search', q=query, p=num)    
 
-    if ' ' in query:
-        return 'multiple tags are not supported yet'
+    tags = query.split()
+    params = tags+[len(tags)]
+    post_sel = Post.raw('select p.id from post p, posttag pt, tag t where pt.tag_id=t.id and pt.post_id=p.id and (t.name in (' + ','.join(['%s'*len(tags)]) + ')) group by p.id having count(p.id)=%s', *params)
 
     tag = Tag.get(Tag.name==query)
     posttags = PostTag.select().where(PostTag.tag==tag)
@@ -33,7 +35,7 @@ def search():
     posts = []
 
     for pt in posttags:
-        cursor = db.execute_sql('select post.id, GROUP_CONCAT(tag.name) from post inner join posttag on posttag.post_id = post.id inner join tag on posttag.tag_id = tag.id where post.id = %s group by post.id', pt.post_id)
+        cursor = db.execute_sql('select post.id, GROUP_CONCAT(tag.name separator ", ") from post inner join posttag on posttag.post_id = post.id inner join tag on posttag.tag_id = tag.id where post.id = %s group by post.id', pt.post_id)
         for row in cursor.fetchall():
             posts.append(row)
 
@@ -47,8 +49,11 @@ def search():
 def view_post(id):
     post = Post.get_or_none(Post.id==id)
     if post is None:
-        return 'no such post', 404
-    cursor = db.execute_sql('select GROUP_CONCAT(tag.name) from post inner join posttag on posttag.post_id = post.id inner join tag on posttag.tag_id = tag.id where post.id = %s group by post.id', id)
+        post = Post(id=id)
+        tags = 'DOES NOT EXIST'
+        content = None
+        return render_template('post.html', post=post, tags=tags, unavail=UnavailablePost.get_or_none(UnavailablePost.id==id), content=Content.get_or_none(Content.post_id==id))
+    cursor = db.execute_sql('select GROUP_CONCAT(tag.name separator ", ") from post inner join posttag on posttag.post_id = post.id inner join tag on posttag.tag_id = tag.id where post.id = %s group by post.id', id)
     tags = ''
     for row in cursor.fetchall():
         tags = row[0]
@@ -59,6 +64,13 @@ def update_post(id):
     download.download_single(QueuedPost(id=id))
     download.put_into_db(timeout=1)
     return redirect(url_for('view_post', id=id))
+
+@app.route('/content/apply-overlay/<int:orig_id>/<int:alt_id>')
+def apply_overlay(orig_id, alt_id):
+    orig_content = Content.get_by_id(orig_id)
+    alt_content = Content.get_by_id(alt_id)
+    optimize_img.rows_into_overlays(orig_content, alt_content)
+    return redirect(url_for('view_content', id=alt_id))
 
 
 @app.route('/content/<int:id>')

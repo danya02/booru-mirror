@@ -20,11 +20,13 @@ def put_into_db(timeout=600):
             print('==== TIMEOUT ====')
             return
         try:
-            model.save(force_insert=force)
+            if model is not None:
+                model.save(force_insert=force)
             print('        Inserted', repr(model))
             print('        Current qsize:', INTO_DB.qsize())
         except:
             print('UNIQUE CONSTRAINT FAILED !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            traceback.print_exc()
         on_done()
         INTO_DB.task_done()
 
@@ -77,7 +79,7 @@ def get_author(id, name=None):
     return author
         
 
-def create_post(post, and_comments=True, and_notes=True, and_download=True):
+def create_post(post, and_comments=True, and_notes=True, and_download=True, past_posts=dict()):
     if not post:
         print('This post is None')
         return None
@@ -117,7 +119,8 @@ def create_post(post, and_comments=True, and_notes=True, and_download=True):
 
         p.score = int(post['score'])
         if post['parent_id']:
-            p.parent = create_post(get_post(int(post['parent_id'])))
+            past_posts[id] = p
+            p.parent = create_post(get_post(int(post['parent_id'])), past_posts=past_posts)
        
         def insert_tags():
             for tag in post['tags'].split():
@@ -233,10 +236,10 @@ def create_notes(post):
 
 JOBS = queue.Queue()
 
-def download_single(post_row):
+def download_single(post_row, content=True):
     post = post_row.id
     print('getting', post)
-    result = create_post(get_post(post))
+    result = create_post(get_post(post), and_download=content)
     if result is None:
         print(post, 'is unavailable')
         UnavailablePost.get_or_create(id=post)
@@ -268,7 +271,10 @@ if __name__ == '__main__':
     def dl():
         while 1:
             try:
-                post_row = QueuedPost.select().where(QueuedPost.id >= random.choice(range(1, QueuedPost.select(fn.Max(QueuedPost.id)).scalar()))).get()
+#                post_row = QueuedPost.select().where(QueuedPost.id >= random.choice(range(1, QueuedPost.select(fn.Max(QueuedPost.id)).scalar()))).get()
+#                post = Post.select(Post.id).where(Post.id >= random.choice(range(1, 300000))).get()
+#                post_row = QueuedPost(id=post.id)
+                post_row = QueuedPost.select().where(QueuedPost.id >= QueuedPost.select(fn.Min(QueuedPost.id)).scalar() + random.randint(0, 100)).get()
             except:
                 print('FAILED getting new job')
                 traceback.print_exc()
