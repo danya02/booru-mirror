@@ -7,9 +7,6 @@ from functools import wraps
 import uuid
 import io
 import requests
-import warnings
-
-warnings.simplefilter('ignore', Image.DecompressionBombWarning) # Needed because some of these images have ludicrous sizes
 
 FILTERS = dict()
 
@@ -25,17 +22,20 @@ def get_img_size(image, drop_img=True):
         os.unlink(path)
     return (size, path) if not drop_img else size
 
-def filter(code, description):
+def filter(code, description, needs_loaded_img=True):
     def wrapper(func):
         @wraps(func)
         def wrapped(target_row, do_update=False, **additional_params):
             mod_row, _ = Modification.get_or_create(code=code, description=description)
-            target_img = Image.open(IMAGE_DIR + target_row.path)
-            try:
-                target_img.seek(1)
-                raise TypeError('Image has more than one frame, not continuing')
-            except EOFError:
-                pass
+            if needs_loaded_img:
+                target_img = Image.open(IMAGE_DIR + target_row.path)
+                try:
+                    target_img.seek(1)
+                    raise TypeError('Image has more than one frame, not continuing')
+                except EOFError:
+                    pass
+            else:
+                target_img = None
             result_img, additional_data = func(target_img, target_row=target_row, mod_row=mod_row, **additional_params)
             if do_update:
                 old_path = target_row.path
@@ -76,7 +76,7 @@ def into_overlay(alt_img, orig_row_id=None, mod_row=None, **kwargs):
     return diff_img, str(orig_row_id) 
 
 
-@filter('replace-with-sample', 'The original form of this image has been replaced with the sample form in order to save disk space. Detail may have been lost. You can access the original image at:')
+@filter('replace-with-sample', 'The original form of this image has been replaced with the sample form in order to save disk space. Detail may have been lost. You can access the original image at:', needs_loaded_img=False)
 def replace_with_sample(target_img, target_row=None, **kwargs):
     post = Post.get(Post.id == target_row.post_id)
     with requests.get(post.sample) as req:
