@@ -5,6 +5,7 @@ import traceback
 import os
 from functools import wraps
 import uuid
+import io
 
 FILTERS = dict()
 
@@ -71,7 +72,16 @@ def into_overlay(alt_img, orig_row_id=None, mod_row=None, **kwargs):
     return diff_img, str(orig_row_id) 
 
 
-    
+@filter('replace-with-sample', 'The original form of this image has been replaced with the sample form in order to save disk space. Detail may have been lost. You can access the original image at:')
+def replace_with_sample(target_img, target_row=None, **kwargs):
+    post = Post.get(Post.id = target_row.post_id)
+    with requests.get(post.sample_url) as req:
+        data = req.content
+    fp = io.BytesIO(data)
+    result_img = Image.open(fp)
+    return result_img, post.url
+
+
 
 #if __name__ == '__main__':
 #    last_id = ContentModification.select(ContentModification.content_id).where(ContentModification.mod_id==1).order_by(-ContentModification.content_id).limit(1).scalar()
