@@ -13,8 +13,20 @@
                 <p>New file size is {{new_size}} bytes, {{new_size|filesizeformat}};</p>
                 <p>The new file is {{(new_size/old_size)*100}}% as large as the old file.</p>
 		<table border=1>
-                    <tr><th>Original image</th><th>Filtered image</th></tr>
-                    <tr><td><img src="{{url_for('view_content', id=target_row.id)}}" style="width: 50%;"></td><td><img src="data:image/png;base64,{{img_data}}"</td></tr>
+                	<tr><th>Original image</th><th>Filtered image</th></tr>
+                	<tr>
+				<td>
+					<input type="button" value="Load original" id="load_original" />
+                        	<td><img src="data:image/png;base64,{{img_data}}"</td>
+                    </tr>
                 </table>
+		<script>
+var btn = document.getElementById("load_original");
+btn.onclick = function(){
+	var img = document.createElement("img");
+	img.src = "{{url_for('view_content', id=target_row.id)}}";
+	btn.parentNode.replaceChild(img, btn);
+};
+		</script>
 	</body>
 </html>
