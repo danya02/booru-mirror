@@ -6,6 +6,7 @@ import os
 from functools import wraps
 import uuid
 import io
+import requests
 
 FILTERS = dict()
 
@@ -74,8 +75,8 @@ def into_overlay(alt_img, orig_row_id=None, mod_row=None, **kwargs):
 
 @filter('replace-with-sample', 'The original form of this image has been replaced with the sample form in order to save disk space. Detail may have been lost. You can access the original image at:')
 def replace_with_sample(target_img, target_row=None, **kwargs):
-    post = Post.get(Post.id = target_row.post_id)
-    with requests.get(post.sample_url) as req:
+    post = Post.get(Post.id == target_row.post_id)
+    with requests.get(post.sample) as req:
         data = req.content
     fp = io.BytesIO(data)
     result_img = Image.open(fp)
