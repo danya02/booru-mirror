@@ -8,10 +8,10 @@ IMAGE_DIR = '/hugedata/rule34.xxx/'
 db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
 
 
-import logging
-logger = logging.getLogger('peewee')
-logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.DEBUG)
+#import logging
+#logger = logging.getLogger('peewee')
+#logger.addHandler(logging.StreamHandler())
+#logger.setLevel(logging.DEBUG)
 
 class MyModel(Model):
     class Meta:
