@@ -29,17 +29,18 @@ def search():
     for i in tags:
         tag_rows.append(Tag.get(Tag.name == i))
 
-    post_query = Post.select(Post.id).join(PostTag)
-    for tagrow in tag_rows:
-        post_query = post_query.where(SQL('EXISTS (SELECT * FROM posttag WHERE tag_id = '+ db.param +')', [tagrow.id]))
+    posts_query = PostTag.select(PostTag.post_id).where(PostTag.tag == tag_rows[0])
+    for tagrow in tag_rows[1:]:
+        posts_query = posts_query.intersect(PostTag.select(PostTag.post_id).where(PostTag.tag == tagrow))
 
-    max_page = math.ceil(post_query.count()/ELEM_PER_PAGE)
+
+    max_page = math.ceil(posts_query.count()/ELEM_PER_PAGE)
     if page < 1 or page > max_page:
         return redirect(get_page(1))
 
-    post_query = post_query.paginate(page, ELEM_PER_PAGE)
+    posts_query = posts_query.paginate(page, ELEM_PER_PAGE)
 
-    post_ids = [post.id for post in post_query]
+    post_ids = [posttag.post_id for posttag in posts_query]
     posts = []
 
     cursor = db.execute_sql('''SELECT post.id, GROUP_CONCAT(tag.name SEPARATOR ", ")
