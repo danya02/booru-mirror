@@ -12,7 +12,7 @@
                     <p>This post is unavailable as of {{unavail.first_detected_at.ctime()}}, reason is: {{unavail.reason}}</p>
                 {% endif %}
                 {% if content %}
-                    <p>This post has content: </p>
+		    <p>This post has content by ID: <code>{{content.id}}</code> </p>
                     <img src="{{url_for('view_content', id=content.id)}}"></img>
                 {% else %}<p>This post has no content.</p>
                 {% endif %}

@@ -3,7 +3,11 @@ import download
 from flask import Flask, render_template, request, url_for, redirect, send_file, request
 import math
 import optimize_img
+import base64
+import os
+
 app = Flask(__name__)
+
 
 @app.route('/')
 def index():
@@ -69,15 +73,22 @@ def update_post(id):
 def preview_filter(filter_name, target_id):
     filter = optimize_img.FILTERS[filter_name]
     target_row = Content.get_by_id(target_id)
-    params = request.params
-    result_img = filter(target_row, **params)
+    params = request.args
+    result_img, add_data = filter(target_row, **params)
     result_size, result_path = optimize_img.get_img_size(result_img, drop_img=False)
     with open(result_path, 'rb') as o:
         data = str(base64.b64encode(o.read()), 'ascii')
     commit_url = url_for('commit_filter', filter_name=filter_name, target_id=target_id, **params)
     os.unlink(result_path)
-    return render_template('preview_filter.html', target_row=target_row, params=params, img_data=data, commit_url=commit_url, old_size=target_row.current_size, new_size=result_size)
+    return render_template('preview_filter.html', target_row=target_row, params=params, img_data=data, add_data=add_data, commit_url=commit_url, old_size=target_row.current_length, new_size=result_size)
 
+@app.route('/content/filter/commit/<filter_name>/<int:target_id>')
+def commit_filter(filter_name, target_id):
+    filter = optimize_img.FILTERS[filter_name]
+    target_row = Content.get_by_id(target_id)
+    params = request.args
+    filter(target_row, do_update=True, **params)
+    return redirect(url_for('view_content', id=target_id))
 
 @app.route('/content/<int:id>')
 def view_content(id):

@@ -8,7 +8,7 @@ import uuid
 
 FILTERS = dict()
 
-def get_img_size(image):
+def get_img_size(image, drop_img=True):
     try:
         os.makedirs(IMAGE_DIR + 'optimize-test/')
     except FileExistsError:
@@ -16,17 +16,18 @@ def get_img_size(image):
     path = IMAGE_DIR + 'optimize-test/' + str(uuid.uuid4()) + '.png'
     image.save(path)
     size = os.path.getsize(path)
-    os.unlink(path)
-    return size
+    if drop_img:
+        os.unlink(path)
+    return (size, path) if not drop_img else size
 
 def filter(code, description):
     def wrapper(func):
         @wraps(func)
         def wrapped(target_row, do_update=False, **additional_params):
             mod_row, _ = Modification.get_or_create(code=code, description=description)
-            target_img = Image.load(IMAGE_DIR + target_row.path)
+            target_img = Image.open(IMAGE_DIR + target_row.path)
             try:
-                img.seek(1)
+                target_img.seek(1)
                 raise TypeError('Image has more than one frame, not continuing')
             except EOFError:
                 pass
@@ -35,7 +36,8 @@ def filter(code, description):
                 old_path = target_row.path
                 new_path = 'modified/'+target_row.path+'.png'
                 try:
-                    os.makedirs('/'.join(new_path.split('/')[:-1]))
+                    os.makedirs('/'+('/'.join(
+                        (IMAGE_DIR + new_path).split('/')[:-1])))
                 except FileExistsError:
                     pass
                 with db.atomic():
@@ -43,9 +45,9 @@ def filter(code, description):
                     target_row.path = new_path
                     target_row.current_length = os.path.getsize(IMAGE_DIR + new_path)
                     target_row.save()
-                    ContentModification.create(content=target_row, mod=mod_row)
+                    ContentModification.create(content=target_row, mod=mod_row, additional_data=additional_data)
                 os.unlink(IMAGE_DIR + old_path)
-           else:
+            else:
                return result_img, additional_data
         FILTERS[code] = wrapped
         return wrapped
@@ -55,8 +57,8 @@ def filter(code, description):
 def into_overlay(alt_img, orig_row_id=None, mod_row=None, **kwargs):
     if orig_row_id is None:
         raise ValueError('No original row ID provided')
-    orig_row = Content.get_by_id(orig_row)
-    orig_img = Image.load(IMAGE_DIR + orig_row.path)
+    orig_row = Content.get_by_id(orig_row_id)
+    orig_img = Image.open(IMAGE_DIR + orig_row.path)
     if alt_img.width != orig_img.width or alt_img.height != orig_img.height:
         raise ValueError('Image size does not match, cannot continue')
     diff_img = Image.new('RGBA', (orig_img.width, orig_img.height), color=(0, 0, 0, 0))
@@ -66,7 +68,7 @@ def into_overlay(alt_img, orig_row_id=None, mod_row=None, **kwargs):
             if orig_img.getpixel((x,y)) != new_color:
                 diff_img.putpixel((x,y), tuple(list(new_color)+[255]))
 
-   return diff_img 
+    return diff_img, str(orig_row_id) 
 
 
     
