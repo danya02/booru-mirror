@@ -46,7 +46,7 @@ def search():
     cursor = db.execute_sql('''SELECT post.id, GROUP_CONCAT(tag.name SEPARATOR ", ")
 FROM post INNER JOIN posttag ON posttag.post_id = post.id
 INNER JOIN tag ON posttag.tag_id = tag.id
-WHERE post.id IN ''' + db.param + '''' GROUP BY post.id''', post_ids)
+WHERE post.id IN ''' + '('+ ', '.join([db.param] * len(post_ids)) + ')' + ''' GROUP BY post.id''', post_ids)
     for row in cursor.fetchall():
         posts.append(row)
 
