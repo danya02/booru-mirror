@@ -6,6 +6,9 @@ import os
 from functools import wraps
 import uuid
 import io
+import warnings
+
+warnings.simplefilter('ignore', Image.DecompressionBombWarning) # Needed because some of these images have ludicrous sizes
 
 FILTERS = dict()
 
