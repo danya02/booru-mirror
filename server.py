@@ -1,6 +1,6 @@
 from database import *
 import download
-from flask import Flask, render_template, request, url_for, redirect, send_file
+from flask import Flask, render_template, request, url_for, redirect, send_file, request
 import math
 import optimize_img
 app = Flask(__name__)
@@ -65,12 +65,18 @@ def update_post(id):
     download.put_into_db(timeout=1)
     return redirect(url_for('view_post', id=id))
 
-@app.route('/content/apply-overlay/<int:orig_id>/<int:alt_id>')
-def apply_overlay(orig_id, alt_id):
-    orig_content = Content.get_by_id(orig_id)
-    alt_content = Content.get_by_id(alt_id)
-    optimize_img.rows_into_overlays(orig_content, alt_content)
-    return redirect(url_for('view_content', id=alt_id))
+@app.route('/content/filter/<filter_name>/<int:target_id>')
+def preview_filter(filter_name, target_id):
+    filter = optimize_img.FILTERS[filter_name]
+    target_row = Content.get_by_id(target_id)
+    params = request.params
+    result_img = filter(target_row, **params)
+    result_size, result_path = optimize_img.get_img_size(result_img, drop_img=False)
+    with open(result_path, 'rb') as o:
+        data = str(base64.b64encode(o.read()), 'ascii')
+    commit_url = url_for('commit_filter', filter_name=filter_name, target_id=target_id, **params)
+    os.unlink(result_path)
+    return render_template('preview_filter.html', target_row=target_row, params=params, img_data=data, commit_url=commit_url, old_size=target_row.current_size, new_size=result_size)
 
 
 @app.route('/content/<int:id>')

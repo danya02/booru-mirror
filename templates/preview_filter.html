@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Previewing filter</title>
+	</head>
+	<body>
+		<h1>Previewing filter</h1>
+		<hr>
+                <p><a href="{{commit_url}}">Commit changes!</a></p>
+                <p>Using these parameters: <code>{{params}}</code></p>
+                <p>Original image size was {{old_size}} bytes, {{old_size|filesizeformat}};</p>
+                <p>New file size is {{new_size}} bytes, {{new_size|filesizeformat}};</p>
+                <p>The new file is {{(new_size/old_size)*100}}% as large as the old file.</p>
+		<table border=1>
+                    <tr><th>Original image</th><th>Filtered image</th></tr>
+                    <tr><td><img src="{{url_for('view_content', id=target_row.id)}}" style="width: 50%;"></td><td><img src="data:image/png;base64,{{img_data}}"</td></tr>
+                </table>
+	</body>
+</html>
