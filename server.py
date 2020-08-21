@@ -25,23 +25,29 @@ def search():
         return url_for('search', q=query, p=num)    
 
     tags = query.split()
-    params = tags+[len(tags)]
-    post_sel = Post.raw('select p.id from post p, posttag pt, tag t where pt.tag_id=t.id and pt.post_id=p.id and (t.name in (' + ','.join(['%s'*len(tags)]) + ')) group by p.id having count(p.id)=%s', *params)
+    tag_rows = []
+    for i in tags:
+        tag_rows.append(Tag.get(Tag.name == i))
 
-    tag = Tag.get(Tag.name==query)
-    posttags = PostTag.select().where(PostTag.tag==tag)
-    max_page = math.ceil(posttags.count()/ELEM_PER_PAGE)
+    post_query = Post.select(Post.id).join(PostTag)
+    for tagrow in tag_rows:
+        post_query = post_query.where(SQL('EXISTS (SELECT * FROM posttag WHERE tag_id = '+ db.param +')', [tagrow.id]))
+
+    max_page = math.ceil(post_query.count()/ELEM_PER_PAGE)
     if page < 1 or page > max_page:
         return redirect(get_page(1))
 
-    posttags = posttags.paginate(page, ELEM_PER_PAGE)
+    post_query = post_query.paginate(page, ELEM_PER_PAGE)
 
+    post_ids = [post.id for post in post_query]
     posts = []
 
-    for pt in posttags:
-        cursor = db.execute_sql('select post.id, GROUP_CONCAT(tag.name separator ", ") from post inner join posttag on posttag.post_id = post.id inner join tag on posttag.tag_id = tag.id where post.id = %s group by post.id', pt.post_id)
-        for row in cursor.fetchall():
-            posts.append(row)
+    cursor = db.execute_sql('''SELECT post.id, GROUP_CONCAT(tag.name SEPARATOR ", ")
+FROM post INNER JOIN posttag ON posttag.post_id = post.id
+INNER JOIN tag ON posttag.tag_id = tag.id
+WHERE post.id IN ''' + db.param + '''' GROUP BY post.id''', post_ids)
+    for row in cursor.fetchall():
+        posts.append(row)
 
 
     def get_post(id):
