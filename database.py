@@ -1,5 +1,9 @@
 from peewee import *
 import datetime
+from PIL import Image
+import hashlib
+import io
+Image.MAX_IMAGE_PIXELS = None
 
 SITE = 'rule34.xxx'
 IMAGE_DIR = '/hugedata/rule34.xxx/'
@@ -75,13 +79,55 @@ class Post(MyModel):
     
     parent = ForeignKeyField('self', backref='children', null=True)
 
+    def get_thumb(self):
+        content = None
+        for i in self.content:
+            content = i
+        if content is None:
+            return None, None
+        return content.get_thumb( (self.preview_width, self.preview_height) )
+
 class Content(MyModel):
     post = ForeignKeyField(Post, backref='content')
     path = CharField(unique=True)
     original_length = IntegerField()
     current_length = IntegerField()
+    
     def is_modified(self):
         return len(self.mods)!=0
+
+    def get_thumb(self, size):
+        thumb = None
+        for i in self.thumbnail:
+            thumb = i
+        if thumb is None:
+            thumb = Thumbnail.generate_from(self.path, size, self)
+        thumb.last_accessed = datetime.datetime.now()
+        thumb.save()
+        return thumb.data, thumb.content_type
+
+
+class Thumbnail(MyModel):
+    content = ForeignKeyField(Content, backref='thumbnail')
+    data = BlobField()
+    etag = FixedCharField(max_length=64)
+    content_type = CharField()
+    last_accessed = DateTimeField(index=True, default=datetime.datetime.now)
+
+    @classmethod
+    def generate_from(cls, path, size, content):
+        img = Image.open(IMAGE_DIR+path)
+        img.thumbnail(size)
+        img = img.convert('RGB')
+        fp = io.BytesIO()
+        img.save(fp, format='JPEG')
+
+        data = fp.getvalue()
+        etag = hashlib.sha256(data).hexdigest()
+        row = cls.create(content_type='image/jpeg', content=content, data=data, etag=etag)
+        #row.save(force_insert=True)
+        return row
+
 
 class Modification(MyModel):
     code = CharField(unique=True, index=True)
@@ -130,4 +176,4 @@ class DownloadedPost(MyModel):
     id = IntegerField(primary_key=True, unique=True)
     when = DateTimeField(default=datetime.datetime.now)
 
-db.create_tables([AccessLevel, User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification, QueuedPost, DownloadedPost])
+db.create_tables([AccessLevel, User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification, QueuedPost, DownloadedPost, Thumbnail])

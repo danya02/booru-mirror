@@ -11,7 +11,7 @@ def custom_rows():
             content.save()
 threading.Thread(target=custom_rows).start() 
 
-for content in Content.select().where(Content.original_length==None).iterator():
+for content in Content.select().where(Content.original_length==None).order_by(fn.Rand()).iterator():
     print(repr(content))
     if not content.is_modified():
         content.original_length = content.current_length = os.path.getsize(IMAGE_DIR + content.path)

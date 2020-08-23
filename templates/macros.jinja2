@@ -1,0 +1,110 @@
+{% macro view_post(post, tag_list) %}
+<span id="s{{post.id}}" class="thumb">
+	<a id="p{{post.id}}" href="{{url_for('view_post', id=post.id)}}">
+		<img src="{{url_for('view_post_thumbnail', id=post.id)}}" alt="{{ ' '.join(tag_list) }}" title=" {{' '.join(tag_list)}}  score:{{post.score}} rating:{{post.rating.value}} " class="preview " border="0">
+	</a>
+</span>
+{% endmacro %}
+
+{% macro search_bar(query) %}
+<div class="awesomplete">
+    <form action="{{url_for('search')}}">
+	<input id="tags" name="q" size="30" type="text" value="{{query}}" autocomplete="off" aria-autocomplete="list">
+	<input type="submit">
+        <ul hidden=""></ul>
+	<span class="visually-hidden" role="status" aria-live="assertive" aria-relevant="additions"></span>
+    </form>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/awesomplete/1.1.5/awesomplete.min.js" integrity="sha512-HcBl0GSJvt4Qecm4srHapirUx0HJDi2zYXm6KUKNNUGdTIN9cBwakVZHWmRVj4MKgy1AChqhWGYcMDbRKgO0zg==" crossorigin="anonymous"></script>
+<script>
+function setUp(elem) {
+    var a;
+
+    if (elem != null) {
+        var linput = "";
+        elem.oninput = function(evt) {
+            var val = evt.target.value;
+            val = val.match(/[^ -][^ ]*$/)[0];
+            console.log("GET FOR", val);
+            if (evt.keyCode == 32) {
+                a.list = [];
+            } else {
+                var ajax = new XMLHttpRequest();
+                ajax.open("GET", "{{ url_for('autocomplete_tags') }}?q=" + val, true);
+                ajax.onload = function() {
+                    var list = JSON.parse(ajax.responseText);
+                    a.list = list;
+                    a.evaluate();
+                    a._events.input.keydown(evt);
+                };
+                ajax.send();
+            }
+        };
+
+        a = new Awesomplete(elem, {
+            minChars: 1,
+            list: [],
+            filter: function(text, input) {
+                return Awesomplete.FILTER_STARTSWITH(text.value, input.match(/[^ -][^ ]*$/)[0]);
+            },
+            sort: false,
+            item: function(text, input) {
+                var ITEM = function (text, input) {
+                    var html = input.trim() === "" ? text.label : text.label.replace(RegExp(Awesomplete.$.regExpEscape(input.trim()), "gi"), "<mark>$&</mark>");
+                    return Awesomplete.$.create("li", {
+                        innerHTML: html,
+                        "aria-selected": "false"
+                    });
+                };
+                console.log({text: text, input: input});
+                console.log(text.label);
+                return Awesomplete.ITEM(text, input.match(/[^ -][^ ]*$/)[0]);
+            }, 
+
+            replace: function(text) {
+                
+                var before = this.input.value.match(/^(.+ )?[\s-]*|/)[0];
+                this.input.value = before + text.value + " ";
+            }
+        })
+    }
+}
+
+window.onload = function() {
+
+    var doAutocomplete = localStorage.getItem("doAutocomplete");
+    if (doAutocomplete == null) {
+        doAutocomplete = "true";
+        localStorage.setItem("doAutocomplete", doAutocomplete);
+    }
+
+    
+
+    if (doAutocomplete == "true") {
+        document.querySelectorAll('#tags, *[name="my_tags"], #stags, *[name="tags"]').forEach(function(e) {
+            setUp(e);
+        });
+    }
+
+    if (document.querySelector("#showAutocomplete") != null) {
+        if (doAutocomplete == "true") {
+            document.querySelector("#showAutocomplete").checked = true;
+        }
+
+        document.querySelector("#showAutocomplete").onchange = function(evt) {
+            if (evt.target.checked) {
+                localStorage.setItem("doAutocomplete", "true");
+            } else {
+                localStorage.setItem("doAutocomplete", "false");
+            }
+
+            if (document.querySelector("#tags") != null) {
+                location.reload();
+            }
+        }
+    }
+
+
+};
+</script>
+{% endmacro %}

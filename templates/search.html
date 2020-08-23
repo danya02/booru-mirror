@@ -1,6 +1,6 @@
 <!doctype html>
 {% macro navbar(cur_page, max_page) %}
-<p>
+<p class="paginator">
     {% if max(1, cur_page-5) != 1 %} <a href="{{ get_url_for_page(1) }}">&lt;--</a> {% endif %}
 {% for ind in range((max(1, cur_page-5)), (min(max_page, cur_page+5))+1) %}
     {% if ind == cur_page %} <b>{{ind}}</b>
@@ -13,22 +13,38 @@
 <html>
 	<head>
 		<title>Search</title>
+		<style>
+span.thumb {
+	height: 180px;
+	width: 180px;
+	display: inline-block;
+	float: left;
+	text-align: center;
+	vertical-align: middle;
+}
+.paginator {
+	display: block;
+	padding: 2em 0 1em;
+	font-size: 1em;
+	text-align: center;
+	clear: both;
+}
+		</style>
+
 	</head>
 	<body>
 		<h1>Search for {{query}}</h1>
 		<hr>
-		<form action="{{url_for('search')}}">
-			<input name="q" value="{{query}}">
-			<input type=submit>
-		</form>
+		{% from "macros.jinja2" import view_post, search_bar %}
+		{{search_bar(query)}}
                 <hr>
 		{{navbar(cur_page, max_page)}}
-		<table border=1>
-			<tr><th>Post ID</th><th>Tags</th></tr>
-			{% for id, tags in posts %}
-			<tr><td><a href="{{url_for('view_post', id=id)}}">{{id}}</a></td><td>{{tags}}</td></tr>
-			{% endfor %}
-		</table>
+
+
+		{% for post, tags in posts %}
+		{{ view_post(post, tags) }}
+		{% endfor %}
+
 		{{navbar(cur_page, max_page)}}
 	</body>
 </html>
