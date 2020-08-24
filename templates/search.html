@@ -29,8 +29,14 @@ span.thumb {
 	text-align: center;
 	clear: both;
 }
+div#sidebar {
+	float: left;
+	margin-right: 1em;
+	overflow: visible;
+	width: 200px;
+}
 		</style>
-
+		{% macro tag_link(name) %}<a href="{{url_for('search', q=name)}}">{{name}}</a>{% endmacro %}
 	</head>
 	<body>
 		<h1>Search for {{query}}</h1>
@@ -38,11 +44,51 @@ span.thumb {
 		{% from "macros.jinja2" import view_post, search_bar %}
 		{{search_bar(query)}}
                 <hr>
+		{% if tag_not_found %}
+		<div>
+			<p>Your query references a tag that could not be found: <code>{{tag_not_found}}</code>. Because of this, the result is empty. Please try again.</p>
+		</div>
+		{% endif %}
+
+		<hr>
+		{% if ambiguous_tags %}
+		<div>
+			<p>One or more of the tags referenced in your query have ambiguous characters. Please consider if any of these are what you meant:</p>
+			<ul>
+			{% for tag, options in ambiguous_tags %}
+				<li><code>{{tag}}</code> compares equal to 
+					{% for diff_tag in options %}
+					{{tag_link(diff_tag)}}{{',' if not loop.last and options.__len__()!=2}} {{'and' if loop.revindex0==1 else ''}}
+					{% endfor %}
+				</li>
+			</ul>
+			{% endfor %}
+		</div>
+		{% endif %}
+		<hr>
+
+		<div id="sidebar">
+			<p>Tags</p>
+			<ul>
+				{% for tag_name in tag_post_counts %}
+				<li>
+					<span>
+						<a href="{{url_for('search', q=query+' '+tag_name)}}" title="search posts that also have this tag">+</a>
+						<a href="{{url_for('search', q=query+' -'+tag_name)}}" title="search posts without this tag">-</a>
+						<a href="{{url_for('search', q=tag_name)}}" title="search for this tag only">{{tag_name}}</a>
+						{{tag_post_counts[tag_name]}}
+					</span>
+				</li>
+				{% endfor %}
+			</ul>
+		</div>
 		{{navbar(cur_page, max_page)}}
 
 
 		{% for post, tags in posts %}
 		{{ view_post(post, tags) }}
+		{% else %}
+		<p>No results found :(</p>
 		{% endfor %}
 
 		{{navbar(cur_page, max_page)}}
