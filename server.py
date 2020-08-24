@@ -27,64 +27,83 @@ GROUP BY tag.id''', list(all_tags))
 
 @app.route('/search')
 def search():
-    query = request.args.get('q')
+    args = request.args.to_dict(flat=False)
+    queries = args['q']
     page = int(request.args.get('p') or 1)
-    if not query:
-        return redirect(url_for('index'))
     def get_page(num):
-        return url_for('search', q=query, p=num)    
+        return url_for('search', q=queries, p=num)    
 
-    # analyze query
-    tags = query.split()
-    query_tags = []
+    query_tags = set()
     ambiguous_tags = []
-    tag_rows = []
-    for i in tags:
-        if i[0] == '-':
-            tag = i[1:]
-            invert = True
-        else:
-            tag = i
-            invert = False
+
+    def generate_db_select(query):
+        # analyze query
+        tags = query.split()
+        tag_rows = []
+        for i in tags:
+            if i[0] == '-':
+                tag = i[1:]
+                invert = True
+            else:
+                tag = i
+                invert = False
 
         
-        query_tags.append(tag)
-        cnt = len(Tag.select().where(Tag.name == tag))
-        if cnt==0:
-            return render_template('search.html', query=query, cur_page=1, max_page=1, posts=[], get_post=lambda x: 'http://WTF/'+str(x), max=max, min=min, get_url_for_page=lambda x: 'http://WTF/page/'+str(x), tag_post_counts=dict(), tag_not_found=tag)
-        else:
-            exact_tag = Tag.get(SQL('BINARY t1.name = %s', [tag]))
-            if cnt>1:
-                tag_alternates = []
-                for opt in Tag.select().where(Tag.name==tag):
-                    print(opt, opt.name)
-                    tag_alternates.append(opt.name)
-                ambiguous_tags.append((tag, tag_alternates))
-            tag_rows.append((exact_tag, invert))
+            query_tags.add(tag)
+            cnt = len(Tag.select().where(Tag.name == tag))
+            if cnt==0:
+                return render_template('search.html', query=query, cur_page=1, max_page=1, posts=[], get_post=lambda x: 'http://WTF/'+str(x), max=max, min=min, get_url_for_page=lambda x: 'http://WTF/page/'+str(x), tag_post_counts=dict(), tag_not_found=tag)
+            else:
+                exact_tag = Tag.get(SQL('BINARY t1.name = %s', [tag]))
+                if cnt>1:
+                    tag_alternates = []
+                    for opt in Tag.select().where(Tag.name==tag):
+                        print(opt, opt.name)
+                        tag_alternates.append(opt.name)
+                    ambiguous_tags.append((tag, tag_alternates))
+                tag_rows.append((exact_tag, invert))
 
-    # build SQL query
+        # build SQL query
 
-    pos_tags = []
-    neg_tags = []
-    for tag, invert in tag_rows:
-        if invert:
-            neg_tags.append(tag)
-        else:
-            pos_tags.append(tag)
-
-    if len(pos_tags)>0:
-        # first, create select by first positive statement
-        posts_query = PostTag.select(PostTag.post_id).where(PostTag.tag == pos_tags[0])
-        # then intersect it with other positive statements
-        for pos_tag in pos_tags[1:]:
-            posts_query = posts_query.intersect( PostTag.select(PostTag.post_id).where(PostTag.tag == pos_tag) )
-        # and except the negative statements
-        for neg_tag in neg_tags:
-            posts_query = posts_query.except_( PostTag.select(PostTag.post_id).where(PostTag.tag == neg_tag) ) 
-    else:
-        # it is not optimal to use except against full result set, so instead the query will be a NOT IN:
-        posts_query = PostTag.select(PostTag.post_id).where(PostTag.tag.not_in(neg_tags))
+        pos_tags = []
+        neg_tags = []
+        for tag, invert in tag_rows:
+            if invert:
+                neg_tags.append(tag)
+            else:
+                pos_tags.append(tag)
     
+        if len(pos_tags)>0:
+            # first, create select by first positive statement
+            posts_query = PostTag.select(PostTag.post_id.distinct()).where(PostTag.tag == pos_tags[0])
+            # then intersect it with other positive statements
+            for pos_tag in pos_tags[1:]:
+                posts_query = posts_query.intersect( PostTag.select(PostTag.post_id.distinct()).where(PostTag.tag == pos_tag) )
+            # and except the negative statements
+            for neg_tag in neg_tags:
+                posts_query = posts_query.except_( PostTag.select(PostTag.post_id.distinct()).where(PostTag.tag == neg_tag) ) 
+        else:
+            if len(neg_tags)==0:
+                # if not looking for anything particular, just select all posts with tags
+                posts_query = PostTag.select(PostTag.post_id.distinct())
+            else:
+                # it is not optimal to use except against full result set, so instead the query will be a NOT IN:
+                posts_query = PostTag.select(PostTag.post_id.distinct()).where(PostTag.tag.not_in(neg_tags))
+        return posts_query
+
+    posts_query = None
+
+    for q in queries:
+        q = q.strip()
+        if q: # so empty queries do not add an unnecessary unlimited select
+            sql_q = generate_db_select(q)
+            if posts_query is None:
+                posts_query = sql_q
+            else:
+                posts_query = posts_query.union(sql_q)
+
+    if posts_query is None:
+        posts_query = Post.select(Post.id)
 
 
     cnt = posts_query.count()
@@ -98,7 +117,7 @@ def search():
     # get list of posts to display on this page
     posts_query = posts_query.paginate(page, ELEM_PER_PAGE)
 
-    post_ids = [posttag.post_id for posttag in posts_query]
+    post_ids = [posttag[0] for posttag in posts_query.tuples()]
     post_tags = dict()
 
 
@@ -146,7 +165,10 @@ WHERE post.id IN ''' + '('+ ', '.join([db.param] * len(post_ids)) + ')', *post_i
     def get_post(id):
         return url_for('view_post', id=id)
 
-    return render_template('search.html', query=query, cur_page=page, max_page=max_page, posts=post_list, get_post=get_post, max=max, min=min, get_url_for_page=get_page, tag_post_counts=tag_post_counts, ambiguous_tags=ambiguous_tags)
+    while len(queries)<4:
+        queries.append('')
+
+    return render_template('search.html', query=queries, cur_page=page, max_page=max_page, posts=post_list, get_post=get_post, max=max, min=min, get_url_for_page=get_page, tag_post_counts=tag_post_counts, ambiguous_tags=ambiguous_tags)
 
 @app.route('/post/<int:id>')
 def view_post(id):

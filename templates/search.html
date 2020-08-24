@@ -72,9 +72,9 @@ div#sidebar {
 			<ul>
 				{% for tag_name in tag_post_counts %}
 				<li>
-					<span>
+					<span>{#
 						<a href="{{url_for('search', q=query+' '+tag_name)}}" title="search posts that also have this tag">+</a>
-						<a href="{{url_for('search', q=query+' -'+tag_name)}}" title="search posts without this tag">-</a>
+						<a href="{{url_for('search', q=query+' -'+tag_name)}}" title="search posts without this tag">-</a>#}
 						<a href="{{url_for('search', q=tag_name)}}" title="search for this tag only">{{tag_name}}</a>
 						{{tag_post_counts[tag_name]}}
 					</span>
