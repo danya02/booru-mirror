@@ -247,6 +247,7 @@ def download_single(post_row, content=True):
         print(post, 'is unavailable')
         UnavailablePost.get_or_create(id=post)
     def accept():
+        print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ACCEPTED ID', post)
         post_row.delete_instance()
         try:
             DownloadedPost.create(id=post)
@@ -284,8 +285,8 @@ if __name__ == '__main__':
                 return
             download_single(post_row)
 
-    for i in range(9):
+    for i in range(2):
         threading.Thread(target=dl).start()
-    for i in range(3):
+    for i in range(6):
         threading.Thread(target=put_into_db).start()
     put_into_db()

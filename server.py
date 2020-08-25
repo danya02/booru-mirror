@@ -19,7 +19,7 @@ def get_post_counts_by_tag(all_tags):
     tag_counts = dict()
     tag_counts_cursor = db.execute_sql('''SELECT tag.name, COUNT(posttag.post_id)
 FROM tag INNER JOIN posttag ON posttag.tag_id = tag.id
-WHERE tag.name IN ''' + '(' + ', '.join([db.param] * len(all_tags)) + ''') 
+WHERE tag.id IN ''' + '(' + ', '.join([db.param] * len(all_tags)) + ''') 
 GROUP BY tag.id''', list(all_tags))
     for tag_name, post_count in tag_counts_cursor.fetchall():
         tag_counts[tag_name] = post_count
@@ -29,11 +29,40 @@ GROUP BY tag.id''', list(all_tags))
 def search():
     args = request.args.to_dict(flat=False)
     queries = args['q']
-    page = int(request.args.get('p') or 1)
-    def get_page(num):
-        return url_for('search', q=queries, p=num)    
+    queries = [i for i in queries if i]
+    def get_page(num, **kwargs):
+        return url_for('search', q=queries, p=num, **kwargs)
+    return search_internal('search.html', get_page)
 
-    query_tags = set()
+@app.route('/dedup/')
+def find_dedup():
+    args = request.args.to_dict(flat=False)
+    queries = args.get('q') or []
+    queries = [i for i in queries if i]
+    base_id = request.args.get('base')
+    if base_id:
+        base_post = Post.get_by_id(base_id)
+    else:
+        base_post = None
+    def get_page(num, **kwargs):
+        return url_for('find_dedup', q=queries, p=num, **kwargs)
+    return search_internal('find-dedup.html', get_page, base_post=base_post)
+
+@app.route('/dedup/<int:base>/<int:leaf>')
+def run_dedup(base, leaf):
+    base = Post.select(Post.id, Content.id).join(Content).where(Post.id==base).get()
+    leaf = Post.select(Post.id, Content.id).join(Content).where(Post.id==leaf).get()
+    base = base.content
+    leaf = leaf.content
+    return redirect(url_for('preview_filter', filter_name='overlay', target_id=leaf.id, orig_row_id=base.id))
+
+def search_internal(template_name, get_page, **kwargs):
+    args = request.args.to_dict(flat=False)
+    queries = args.get('q') or []
+    adv_mode = bool(args.get('adv_mode'))
+    page = int(request.args.get('p') or 1)
+
+    query_tag_ids = set()
     ambiguous_tags = []
 
     def generate_db_select(query):
@@ -49,12 +78,12 @@ def search():
                 invert = False
 
         
-            query_tags.add(tag)
             cnt = len(Tag.select().where(Tag.name == tag))
             if cnt==0:
                 return render_template('search.html', query=query, cur_page=1, max_page=1, posts=[], get_post=lambda x: 'http://WTF/'+str(x), max=max, min=min, get_url_for_page=lambda x: 'http://WTF/page/'+str(x), tag_post_counts=dict(), tag_not_found=tag)
             else:
                 exact_tag = Tag.get(SQL('BINARY t1.name = %s', [tag]))
+                query_tag_ids.add(exact_tag.id)
                 if cnt>1:
                     tag_alternates = []
                     for opt in Tag.select().where(Tag.name==tag):
@@ -112,7 +141,7 @@ def search():
         if cnt != 0:
             return redirect(get_page(1))
         else:
-            return render_template('search.html', query=query, cur_page=1, max_page=1, posts=[], get_post=None, max=max, min=min, get_url_for_page=None, tag_post_counts=dict(), ambiguous_tags=ambiguous_tags)
+            return render_template(template_name, query=queries, cur_page=1, max_page=1, posts=[], get_post=None, max=max, min=min, get_url_for_page=None, tag_post_counts=dict(), ambiguous_tags=ambiguous_tags, **kwargs)
 
     # get list of posts to display on this page
     posts_query = posts_query.paginate(page, ELEM_PER_PAGE)
@@ -123,17 +152,18 @@ def search():
 
     # for each post, get list of tags belonging to this post
     tag_sep = 'TAGseparator_tagSEPARATOR'
-    post_tags_cursor = db.execute_sql('''SELECT post.id, GROUP_CONCAT(tag.name SEPARATOR %s)
+    post_tags_cursor = db.execute_sql('''SELECT post.id, GROUP_CONCAT(tag.id SEPARATOR " "), GROUP_CONCAT(tag.name SEPARATOR %s)
 FROM post INNER JOIN posttag ON posttag.post_id = post.id
 INNER JOIN tag ON posttag.tag_id = tag.id
 WHERE post.id IN ''' + '('+ ', '.join([db.param] * len(post_ids)) + ')' + ''' GROUP BY post.id''', [tag_sep]+post_ids)
     for row in post_tags_cursor.fetchall():
-        id, tags = row
-        post_tags[id] = tags.split(tag_sep)
+        id, tag_ids, tag_names = row
+        post_tags[id] = list(zip(
+            list(map(int, tag_ids.split())),
+            tag_names.split(tag_sep)))
 
     # get list of post instances
-    post_rows = list(Post.raw('''SELECT * FROM post
-WHERE post.id IN ''' + '('+ ', '.join([db.param] * len(post_ids)) + ')', *post_ids))
+    post_rows = list(Post.select().join(Rating).where(Post.id.in_(post_ids)))
 
     post_rows.sort(key=lambda x: x.id)
     post_rows_dict = dict()
@@ -149,26 +179,29 @@ WHERE post.id IN ''' + '('+ ', '.join([db.param] * len(post_ids)) + ')', *post_i
     # from tag lists, get tags 
     all_tags = set()
     for index, id in enumerate(post_tags):
-        for i in query_tags:
+        for i in query_tag_ids:
             all_tags.discard(i)
         if len(all_tags) > 50:
             break
         for tag in post_tags[id]:
-            all_tags.add(tag)
+            all_tags.add(tag[0])
             if len(all_tags) > 50:
                 break
 
     # and get count of posts for each of the tags
-    tag_post_counts = get_post_counts_by_tag(all_tags)
+    # tag_post_counts = get_post_counts_by_tag(all_tags) # FIXME: this takes too long on my system -- why?
+    tag_post_counts = dict()
+    for i in Tag.select(Tag.name).where(Tag.id.in_(list(all_tags))).tuples():
+        tag_post_counts[ i[0] ] = 0
     
+
 
     def get_post(id):
         return url_for('view_post', id=id)
 
-    while len(queries)<4:
-        queries.append('')
 
-    return render_template('search.html', query=queries, cur_page=page, max_page=max_page, posts=post_list, get_post=get_post, max=max, min=min, get_url_for_page=get_page, tag_post_counts=tag_post_counts, ambiguous_tags=ambiguous_tags)
+    return render_template(template_name, query=queries, cur_page=page, max_page=max_page, posts=post_list, get_post=get_post, max=max, min=min, get_url_for_page=get_page, tag_post_counts=tag_post_counts, ambiguous_tags=ambiguous_tags, advanced_mode=adv_mode, **kwargs)
+
 
 @app.route('/post/<int:id>')
 def view_post(id):

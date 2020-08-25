@@ -87,6 +87,7 @@ class Post(MyModel):
             return None, None
         return content.get_thumb( (self.preview_width, self.preview_height) )
 
+
 class Content(MyModel):
     post = ForeignKeyField(Post, backref='content')
     path = CharField(unique=True)
