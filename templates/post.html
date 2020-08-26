@@ -2,6 +2,26 @@
 <html>
 	<head>
 		<title>Post {{id}}</title>
+<style>
+.image-container{
+	position: relative;
+	top: 0;
+	left: 0;
+}
+.base-img {
+	position: relative;
+	top: 0;
+	left: 0;
+	z-index: -10;
+}
+.overlay-img { 
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 10;
+	
+}
+</style>
 	</head>
 	<body>
 		<h1>Post {{id}}</h1>
@@ -12,8 +32,26 @@
                     <p>This post is unavailable as of {{unavail.first_detected_at.ctime()}}, reason is: {{unavail.reason}}</p>
                 {% endif %}
                 {% if content %}
-		    <p>This post has content by ID: <code>{{content.id}}</code> </p>
-                    <img src="{{url_for('view_content', id=content.id)}}"></img>
+			<p>This post has content by ID: <code>{{content.id}}</code>, current length is {{content.current_length|filesizeformat}}{% if content.current_length != content.original_length %}, original length was {{content.original_length|filesizeformat}}{% endif %}  </p>
+			{% if base_img %}
+			<p>This post's content has been replaced with the difference between itself and <a href="{{url_for('view_post', id=base_img.post_id)}}">another post</a>.</p>
+			{% endif %}
+
+
+			{% if modifications %}
+			<p>This content has one or more modifications:</p>
+			<ul>
+				{% for code, desc, data in modifications %}
+				<li><code>{{code}}</code>: {{desc}} <code>{{data}}</code></li>
+				{% endfor %}
+			</ul>
+			{% endif %}
+			<div class="image-container">
+				<img class="overlay-img" src="{{url_for('view_content', id=content.id)}}"></img>
+				{% if base_img %}
+					<img class="base-img" src="{{url_for('view_content', id=base_img.id)}}"></img>
+				{% endif %}
+			</div>
                 {% else %}<p>This post has no content.</p>
                 {% endif %}
 	</body>

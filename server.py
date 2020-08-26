@@ -209,7 +209,7 @@ def view_post(id):
     if post is None:
         post = Post(id=id)
         content = None
-        return render_template('post.html', post=post, tags=[], tag_counts=dict(), unavail=UnavailablePost.get_or_none(UnavailablePost.id==id), content=Content.get_or_none(Content.post_id==id))
+        return render_template('post.html', post=post, tags=['Post does not exist, consider updating'], tag_counts=dict(), unavail=UnavailablePost.get_or_none(UnavailablePost.id==id), content=Content.get_or_none(Content.post_id==id))
     
     tag_sep = 'TAGseparator_tagSEPARATOR'
     cursor = db.execute_sql('''SELECT GROUP_CONCAT(tag.name SEPARATOR %s) 
@@ -219,7 +219,15 @@ WHERE post.id = %s GROUP BY post.id''', [tag_sep, id])
     for row in cursor.fetchall():
         tags = row[0].split(tag_sep)
     tag_counts = get_post_counts_by_tag(tags)
-    return render_template('post.html', post=post, tags=tags, tag_counts=tag_counts, unavail=UnavailablePost.get_or_none(UnavailablePost.id==id), content=Content.get_or_none(Content.post_id==id))
+    content = Content.get_or_none(Content.post_id==id)
+    mods = []
+    base_img = None
+    if content:
+        for cm in ContentModification.select().join(Modification).where(ContentModification.content == content):
+            mods.append((cm.mod.code, cm.mod.description, cm.additional_data))
+            if cm.mod.code == 'overlay':
+                base_img = Content.get_by_id(int(cm.additional_data))
+    return render_template('post.html', post=post, tags=tags, base_img=base_img, tag_counts=tag_counts, modifications=mods, unavail=UnavailablePost.get_or_none(UnavailablePost.id==id), content=content)
 
 
 @app.route('/post/<int:id>/update')
