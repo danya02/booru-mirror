@@ -36,13 +36,13 @@ div#sidebar {
 	width: 200px;
 }
 		</style>
-		{% macro tag_link(name) %}<a href="{{url_for('search', q=name)}}">{{name}}</a>{% endmacro %}
+		{% macro tag_link(name) %}<a href="{{url_for('find_dedup', q=name)}}">{{name}}</a>{% endmacro %}
 	</head>
 	<body>
 		<h1>Finding diffs for {{query}}</h1>
 		<hr>
 		{% from "macros.jinja2" import view_post, search_bar %}
-		{{search_bar(query)}}
+		{{search_bar(query, url=url_for('find_dedup')) }}
                 <hr>
 		{% if tag_not_found %}
 		<div>
@@ -67,7 +67,7 @@ div#sidebar {
 		{% endif %}
 		<hr>
 		{% if base_post %}
-		<p>Base image will be: {{view_post(base_post, [])}}</p>
+		<p>Base image will be: {{view_post(base_post, [], set_id=False)}}</p>
 		<p><a href="{{url_for('find_dedup', q=query, p=cur_page)}}">Reset!</a></p>
 		{% else %}
 		<p>Base image not selected!</p>
@@ -78,10 +78,10 @@ div#sidebar {
 			<ul>
 				{% for tag_name in tag_post_counts %}
 				<li>
-					<span>{#
-						<a href="{{url_for('search', q=query+' '+tag_name)}}" title="search posts that also have this tag">+</a>
-						<a href="{{url_for('search', q=query+' -'+tag_name)}}" title="search posts without this tag">-</a>#}
-						<a href="{{url_for('search', q=tag_name)}}" title="search for this tag only">{{tag_name}}</a>
+					<span>
+						<a href="{{url_for('find_dedup', q=query[0]+' '+tag_name)}}" title="search posts that also have this tag">+</a>
+						<a href="{{url_for('find_dedup', q=query[0]+' -'+tag_name)}}" title="search posts without this tag">-</a>
+						<a href="{{url_for('find_dedup', q=tag_name)}}" title="search for this tag only">{{tag_name}}</a>
 						{# {{tag_post_counts[tag_name]}} #}
 					</span>
 				</li>
@@ -93,9 +93,13 @@ div#sidebar {
 
 			{% for post, tags in posts %}
 				{% if base_post %}
-					{{ view_post(post, tags, url_for('run_dedup', base=base_post.id, leaf=post.id)) }}
+					{% if post.id == base_post.id %}
+						{{ view_post(post, tags, url='None', set_id=True) }}
+					{% else %}
+						{{ view_post(post, tags, url=url_for('run_dedup', base=base_post.id, leaf=post.id), set_id=True) }}
+					{% endif %}
 				{% else %}
-					{{ view_post(post, tags, url_for('find_dedup', q=query, base=post.id)) }}
+					{{ view_post(post, tags, url=url_for('find_dedup', q=query, base=post.id, p=cur_page) + "#p" + post.id|string , set_id=True) }}
 				{% endif %}
 			{% else %}
 			<p>No results found :(</p>

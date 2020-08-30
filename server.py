@@ -45,8 +45,9 @@ def find_dedup():
     else:
         base_post = None
     def get_page(num, **kwargs):
-        return url_for('find_dedup', q=queries, p=num, **kwargs)
-    return search_internal('find-dedup.html', get_page, base_post=base_post)
+        return url_for('find_dedup', q=queries, p=num, **kwargs, base=base_id)
+    return search_internal('find-dedup.html', get_page, base_post=base_post,
+            query_postprocess=lambda x: x.except_(Post.select(Post.id).join(Content).join(ContentModification).join(Modification).where(Modification.code != 'overlay')))
 
 @app.route('/dedup/<int:base>/<int:leaf>')
 def run_dedup(base, leaf):
@@ -56,7 +57,7 @@ def run_dedup(base, leaf):
     leaf = leaf.content
     return redirect(url_for('preview_filter', filter_name='overlay', target_id=leaf.id, orig_row_id=base.id))
 
-def search_internal(template_name, get_page, **kwargs):
+def search_internal(template_name, get_page, query_postprocess=None, **kwargs):
     args = request.args.to_dict(flat=False)
     queries = args.get('q') or []
     adv_mode = bool(args.get('adv_mode'))
@@ -132,7 +133,10 @@ def search_internal(template_name, get_page, **kwargs):
                 posts_query = posts_query.union(sql_q)
 
     if posts_query is None:
-        posts_query = Post.select(Post.id)
+        posts_query = PostTag.select(PostTag.post_id)
+
+    if query_postprocess:
+        posts_query = query_postprocess(posts_query)
 
 
     cnt = posts_query.count()
