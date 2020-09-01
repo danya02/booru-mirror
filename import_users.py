@@ -3,6 +3,7 @@ import datetime
 import bs4
 import requests
 import traceback
+import random
 
 def fetch_user(id):
     cookies = {
@@ -38,7 +39,13 @@ def fetch_user(id):
         user.save()
 
 if __name__ == '__main__':
-    for i in range(32310, 750954):
-        print('Fetching user', i)
-        fetch_user(i)
+#    for i in range(32310, 750954):
+#        try:
+#            db.execute_sql('INSERT INTO `user` (`id`) VALUES (%s)', i)
+#        except:
+#            pass
+    while 1:
+        for i in User.select(User.id).where(User.username == None).order_by(fn.Rand()).limit(25).iterator():
+            print('Fetching user', i.id)
+            fetch_user(i.id)
 
