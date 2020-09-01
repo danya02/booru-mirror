@@ -5,6 +5,8 @@ import math
 import optimize_img
 import base64
 import os
+import time
+from functools import wraps
 
 app = Flask(__name__)
 
@@ -25,46 +27,32 @@ GROUP BY tag.id''', list(all_tags))
         tag_counts[tag_name] = post_count
     return tag_counts
 
-@app.route('/search')
-def search():
-    args = request.args.to_dict(flat=False)
-    queries = args['q']
-    queries = [i for i in queries if i]
-    def get_page(num, **kwargs):
-        return url_for('search', q=queries, p=num, **kwargs)
-    return search_internal('search.html', get_page)
-
-@app.route('/dedup/')
-def find_dedup():
-    args = request.args.to_dict(flat=False)
-    queries = args.get('q') or []
-    queries = [i for i in queries if i]
-    base_id = request.args.get('base')
-    if base_id:
-        base_post = Post.get_by_id(base_id)
-    else:
-        base_post = None
-    def get_page(num, **kwargs):
-        return url_for('find_dedup', q=queries, p=num, **kwargs, base=base_id)
-    return search_internal('find-dedup.html', get_page, base_post=base_post,
-            query_postprocess=lambda x: x.except_(Post.select(Post.id).join(Content).join(ContentModification).join(Modification).where(Modification.code != 'overlay')))
-
-@app.route('/dedup/<int:base>/<int:leaf>')
-def run_dedup(base, leaf):
     base = Post.select(Post.id, Content.id).join(Content).where(Post.id==base).get()
     leaf = Post.select(Post.id, Content.id).join(Content).where(Post.id==leaf).get()
     base = base.content
     leaf = leaf.content
     return redirect(url_for('preview_filter', filter_name='overlay', target_id=leaf.id, orig_row_id=base.id))
 
-def search_internal(template_name, get_page, query_postprocess=None, **kwargs):
+def returns_json(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        started_at = time.time()
+        answer = func(*args, **kwargs)
+        time_elapsed = time.time() - started_at
+        answer.update({'DEBUG_started_at': started_at, 'DEBUG_time_elapsed': time_elapsed})
+        return jsonify(answer)
+    return wrapper
+
+@app.route('/api/search')
+@returns_json
+def search_internal():
     args = request.args.to_dict(flat=False)
     queries = args.get('q') or []
-    adv_mode = bool(args.get('adv_mode'))
     page = int(request.args.get('p') or 1)
 
     query_tag_ids = set()
     ambiguous_tags = []
+    warnings = []
 
     def generate_db_select(query):
         # analyze query
@@ -81,7 +69,7 @@ def search_internal(template_name, get_page, query_postprocess=None, **kwargs):
         
             cnt = len(Tag.select().where(Tag.name == tag))
             if cnt==0:
-                return render_template('search.html', query=query, cur_page=1, max_page=1, posts=[], get_post=lambda x: 'http://WTF/'+str(x), max=max, min=min, get_url_for_page=lambda x: 'http://WTF/page/'+str(x), tag_post_counts=dict(), tag_not_found=tag)
+                return {'status': 'error', 'error': 'tag_not_found', 'error_data': {'unknown_tag': tag}, 'error_human_readable': f'Tag "{tag}" was not found, so we could not return any results.'}
             else:
                 exact_tag = Tag.get(SQL('BINARY t1.name = %s', [tag]))
                 query_tag_ids.add(exact_tag.id)
@@ -127,6 +115,8 @@ def search_internal(template_name, get_page, query_postprocess=None, **kwargs):
         q = q.strip()
         if q: # so empty queries do not add an unnecessary unlimited select
             sql_q = generate_db_select(q)
+            if isinstance(sql_q, dict):  # this means that there was an error, and we need to return this raw
+                return sql_q
             if posts_query is None:
                 posts_query = sql_q
             else:
@@ -135,17 +125,27 @@ def search_internal(template_name, get_page, query_postprocess=None, **kwargs):
     if posts_query is None:
         posts_query = PostTag.select(PostTag.post_id)
 
-    if query_postprocess:
-        posts_query = query_postprocess(posts_query)
+    for tag, options in ambiguous_tags:
+        human_variants = ''
+        if len(options) == 1:
+            human_variants = f'"{options[0]}"'
+        else:
+            while options:
+                opt = options.pop()
+                if len(options) == 1: # then there are two left to display
+                    human_variants += f'"{opt}" and "{options.pop()}"'
+                else:
+                    human_variants += f'"{opt}", '
+        warnings.append({'code': 'ambiguous_tag', 'tag_name': tag, 'variants': options, 'human_readable': f'You have entered a tag by the name "{tag}", which can be confused with these tags: {human_variants}'})
 
 
     cnt = posts_query.count()
     max_page = math.ceil(cnt/ELEM_PER_PAGE)
     if page < 1 or page > max_page:
         if cnt != 0:
-            return redirect(get_page(1))
+            return {'status': 'error', 'error': 'page_out_of_bounds', 'error_data': {'max_page': max_page, 'current_page': page}, 'error_human_readable': f'You have requested a page with a page number too high.'}
         else:
-            return render_template(template_name, query=queries, cur_page=1, max_page=1, posts=[], get_post=None, max=max, min=min, get_url_for_page=None, tag_post_counts=dict(), ambiguous_tags=ambiguous_tags, **kwargs)
+            return {'total_count': cnt, 'current_page': 1, 'max_page': '1', 'results': [], 'status': 'ok'}
 
     # get list of posts to display on this page
     posts_query = posts_query.paginate(page, ELEM_PER_PAGE)
@@ -197,14 +197,35 @@ WHERE post.id IN ''' + '('+ ', '.join([db.param] * len(post_ids)) + ')' + ''' GR
     tag_post_counts = dict()
     for i in Tag.select(Tag.name).where(Tag.id.in_(list(all_tags))).tuples():
         tag_post_counts[ i[0] ] = 0
-    
+
+    # get contents for posts
+
+    content_by_post_id = dict()
+    for content_row in Content.select().where(Content.post_id.in_(post_ids)): 
+        content_by_post_id.update({content_row.post_id:
+            {
+                'id': content_row.id,
+                # TODO: add more useful fields
+            }})
+
+    # build response objects from models
+
+    results_list = []
+
+    for post_row in post_rows:
+        tags = post_tags[post_row.id]
+        content = content_by_post_id.get(post_row.id)
+        results_list.append({'id': post_row.id,
+            'content': content,
+            'thumbnail_url': url_for('view_post_thumbnail', id=post_row.id),
+            'tags': tags,
+            'score': post_row.score,
+            'source_url': get_post_url_on_source(post_row.id)})
 
 
-    def get_post(id):
-        return url_for('view_post', id=id)
 
-
-    return render_template(template_name, query=queries, cur_page=page, max_page=max_page, posts=post_list, get_post=get_post, max=max, min=min, get_url_for_page=get_page, tag_post_counts=tag_post_counts, ambiguous_tags=ambiguous_tags, advanced_mode=adv_mode, **kwargs)
+    return {'total_count': cnt, 'current_page': page, 'max_page': max_page,
+            'results': results_list, 'warnings': warnings}
 
 
 @app.route('/post/<int:id>')

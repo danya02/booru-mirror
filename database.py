@@ -12,6 +12,9 @@ IMAGE_DIR = '/hugedata/rule34.xxx/'
 db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
 
 
+def get_post_url_on_source(id):
+    return 'https://rule34.xxx/index.php?page=post&s=view&id='+str(id)
+
 import logging
 logger = logging.getLogger('peewee')
 logger.addHandler(logging.StreamHandler())
