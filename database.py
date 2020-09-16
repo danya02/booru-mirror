@@ -3,6 +3,7 @@ import datetime
 from PIL import Image
 import hashlib
 import io
+import os
 Image.MAX_IMAGE_PIXELS = None
 
 SITE = 'rule34.xxx'
@@ -14,6 +15,43 @@ db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
 
 def get_post_url_on_source(id):
     return 'https://rule34.xxx/index.php?page=post&s=view&id='+str(id)
+
+content_databases = dict()
+
+class File(Model):
+    name = CharField(unique=True, primary_key=True)
+    content = BlobField()
+
+    def get_file_content(name):
+        database = content_databases.get(name[:4])
+        if database is None:
+            try:
+                os.makedirs(IMAGE_DIR+name[:2]+'/')
+            except FileExistsError:
+                pass
+            database = SqliteDatabase(IMAGE_DIR+name[:2]+'/'+name[:4]+'.db')
+            content_databases[name[:4]] = database
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            return File.get(File.name==name).content
+
+    def set_file_content(name, data):
+        database = content_databases.get(name[:4])
+        if database is None:
+            try:
+                os.makedirs(IMAGE_DIR+name[:2]+'/')
+            except FileExistsError:
+                pass
+            database = SqliteDatabase(IMAGE_DIR+name[:2]+'/'+name[:4]+'.db')
+            content_databases[name[:4]] = database
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            try:
+                filerow = File.get(File.name == name)
+                filerow.content = data
+            except File.DoesNotExist:
+                filerow = File.create(name=name, content=data)
+
 
 import logging
 logger = logging.getLogger('peewee')
