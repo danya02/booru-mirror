@@ -26,6 +26,9 @@ def fetch_user(id):
     join_date_row = resp_parsed.table.contents[3]
     join_date = join_date_row.contents[3].text
     if 'N/A' in join_date:
+        print(resp_parsed)
+        if 'here but us' in str(resp_parsed):
+            user.delete_instance()
         return
     if not user.username:
         raise ValueError('Username empty, better not continue')
@@ -45,7 +48,7 @@ if __name__ == '__main__':
 #        except:
 #            pass
     while 1:
-        for i in User.select(User.id).where(User.username == None).order_by(fn.Rand()).limit(25).iterator():
+        for i in User.select(User.id).where(User.join_date == None).order_by(fn.Rand()).limit(25).iterator():
             print('Fetching user', i.id)
             fetch_user(i.id)
 

@@ -7,7 +7,7 @@ import os
 Image.MAX_IMAGE_PIXELS = None
 
 SITE = 'rule34.xxx'
-IMAGE_DIR = '/hugedata/rule34.xxx/'
+IMAGE_DIR = '/hugedata/booru/rule34.xxx/'
 
 #db = SqliteDatabase(SITE+'.db', timeout=600)
 db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
@@ -23,27 +23,27 @@ class File(Model):
     content = BlobField()
 
     def get_file_content(name):
-        database = content_databases.get(name[:4])
+        database = content_databases.get(name[:2])
         if database is None:
             try:
-                os.makedirs(IMAGE_DIR+name[:2]+'/')
+                os.makedirs(IMAGE_DIR+name[:1]+'/')
             except FileExistsError:
                 pass
-            database = SqliteDatabase(IMAGE_DIR+name[:2]+'/'+name[:4]+'.db')
-            content_databases[name[:4]] = database
+            database = SqliteDatabase(IMAGE_DIR+name[:1]+'/'+name[:2]+'.db')
+            content_databases[name[:2]] = database
         with database.bind_ctx((File,)):
             database.create_tables((File,))
             return File.get(File.name==name).content
 
     def set_file_content(name, data):
-        database = content_databases.get(name[:4])
+        database = content_databases.get(name[:2])
         if database is None:
             try:
-                os.makedirs(IMAGE_DIR+name[:2]+'/')
+                os.makedirs(IMAGE_DIR+name[:1]+'/')
             except FileExistsError:
                 pass
-            database = SqliteDatabase(IMAGE_DIR+name[:2]+'/'+name[:4]+'.db')
-            content_databases[name[:4]] = database
+            database = SqliteDatabase(IMAGE_DIR+name[:1]+'/'+name[:2]+'.db')
+            content_databases[name[:2]] = database
         with database.bind_ctx((File,)):
             database.create_tables((File,))
             try:
@@ -64,6 +64,13 @@ class MyModel(Model):
 
 class AccessLevel(MyModel):
     name = CharField(unique=True)
+
+# TEMPORARY
+class PathToMigrate(MyModel):
+    path = CharField(unique=True)
+
+db.create_tables([PathToMigrate])
+# TEMPORARY
 
 class User(MyModel):
     id = IntegerField(primary_key=True, unique=True)
