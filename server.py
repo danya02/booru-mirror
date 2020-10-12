@@ -1,6 +1,6 @@
 from database import *
 import download
-from flask import Flask, render_template, request, url_for, redirect, send_file, request, make_response, jsonify
+from flask import Flask, render_template, request, url_for, redirect, send_file, request, make_response, jsonify, Response
 import math
 import optimize_img
 import base64
@@ -266,7 +266,7 @@ def view_content(id):
     content = Content.get_or_none(Content.id==id)
     if content is None:
         return 'no such content', 404
-    return send_file(IMAGE_DIR+content.path)
+    return Response(File.get_file_content(content.path), mimetype='image/*')
 
 @app.route('/post/<int:id>/thumbnail')
 def view_post_thumbnail(id):

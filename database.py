@@ -3,19 +3,77 @@ import datetime
 from PIL import Image
 import hashlib
 import io
+import os
 Image.MAX_IMAGE_PIXELS = None
 
 SITE = 'rule34.xxx'
-IMAGE_DIR = '/hugedata/rule34.xxx/'
+IMAGE_DIR = '/hugedata/booru/rule34.xxx/'
 
 #db = SqliteDatabase(SITE+'.db', timeout=600)
 db = MySQLDatabase('rule34', user='booru', password='booru', host='10.0.0.2')
+
+def get_post_url_on_source(id):
+    return 'https://rule34.xxx/index.php?page=post&s=view&id='+str(id)
+
+content_databases = dict()
+
+def get_content_db(name):
+    database = content_databases.get(name[:2])
+    if database is None:
+        try:
+            os.makedirs(IMAGE_DIR+name[:1]+'/')
+        except FileExistsError:
+            pass
+        database = SqliteDatabase(IMAGE_DIR+name[:1]+'/'+name[:2]+'.db', timeout=300)
+        content_databases[name[:2]] = database
+    return database
+
+class File(Model):
+    name = CharField(unique=True, primary_key=True)
+    content = BlobField()
+
+
+    @staticmethod
+    def get_file_content(name):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            return File.get(File.name==name).content
+
+    @staticmethod
+    def set_file_content(name, data):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            try:
+                filerow = File.get(File.name == name)
+                filerow.content = data
+            except File.DoesNotExist:
+                filerow = File.create(name=name, content=data)
+
+    @staticmethod
+    def delete_file(name):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            return File.delete().where(File.name==name).execute()
+
+
+    @staticmethod
+    def get_length(name):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            try:
+                return File.select(fn.length(File.content)).where(File.name == name).scalar()
+            except File.DoesNotExist:
+                return None
 
 
 import logging
 logger = logging.getLogger('peewee')
 logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 class MyModel(Model):
     class Meta:
@@ -117,7 +175,8 @@ class Thumbnail(MyModel):
 
     @classmethod
     def generate_from(cls, path, size, content):
-        img = Image.open(IMAGE_DIR+path)
+        full_img = io.BytesIO(File.get_file_content(path))
+        img = Image.open(full_img)
         img.thumbnail(size)
         img = img.convert('RGB')
         fp = io.BytesIO()
