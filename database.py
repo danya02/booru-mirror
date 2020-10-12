@@ -18,32 +18,32 @@ def get_post_url_on_source(id):
 
 content_databases = dict()
 
+def get_content_db(name):
+    database = content_databases.get(name[:2])
+    if database is None:
+        try:
+            os.makedirs(IMAGE_DIR+name[:1]+'/')
+        except FileExistsError:
+            pass
+        database = SqliteDatabase(IMAGE_DIR+name[:1]+'/'+name[:2]+'.db', timeout=300)
+        content_databases[name[:2]] = database
+    return database
+
 class File(Model):
     name = CharField(unique=True, primary_key=True)
     content = BlobField()
 
+
+    @staticmethod
     def get_file_content(name):
-        database = content_databases.get(name[:2])
-        if database is None:
-            try:
-                os.makedirs(IMAGE_DIR+name[:1]+'/')
-            except FileExistsError:
-                pass
-            database = SqliteDatabase(IMAGE_DIR+name[:1]+'/'+name[:2]+'.db')
-            content_databases[name[:2]] = database
+        database = get_content_db(name)
         with database.bind_ctx((File,)):
             database.create_tables((File,))
             return File.get(File.name==name).content
 
+    @staticmethod
     def set_file_content(name, data):
-        database = content_databases.get(name[:2])
-        if database is None:
-            try:
-                os.makedirs(IMAGE_DIR+name[:1]+'/')
-            except FileExistsError:
-                pass
-            database = SqliteDatabase(IMAGE_DIR+name[:1]+'/'+name[:2]+'.db')
-            content_databases[name[:2]] = database
+        database = get_content_db(name)
         with database.bind_ctx((File,)):
             database.create_tables((File,))
             try:
@@ -51,6 +51,25 @@ class File(Model):
                 filerow.content = data
             except File.DoesNotExist:
                 filerow = File.create(name=name, content=data)
+
+    @staticmethod
+    def delete_file(name):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            return File.delete().where(File.name==name).execute()
+
+
+    @staticmethod
+    def get_length(name):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            try:
+                return File.select(fn.length(File.content)).where(File.name == name).scalar()
+            except File.DoesNotExist:
+                return None
+
 
 
 import logging
@@ -69,7 +88,10 @@ class AccessLevel(MyModel):
 class PathToMigrate(MyModel):
     path = CharField(unique=True)
 
-db.create_tables([PathToMigrate])
+class WeirdComment(MyModel):
+    post_id=IntegerField()
+
+db.create_tables([PathToMigrate, WeirdComment])
 # TEMPORARY
 
 class User(MyModel):

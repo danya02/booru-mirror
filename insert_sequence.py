@@ -1,6 +1,7 @@
 from database import *
 
-start = QueuedPost.select(fn.Max(QueuedPost.id)).scalar()+2
+#start = QueuedPost.select(fn.Max(QueuedPost.id)).scalar()+2
+start = 1
 end = int(input('Current max post: '))
 
 for chunk in chunked(range(start, end), 10000):

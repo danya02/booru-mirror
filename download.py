@@ -31,7 +31,10 @@ def put_into_db(timeout=600):
         INTO_DB.task_done()
 
 def save(model, force_insert=False, on_done=lambda: None):
-    INTO_DB.put((model, force_insert, on_done))
+    #INTO_DB.put((model, force_insert, on_done))
+    if model:
+        model.save(force_insert=force_insert)
+    on_done()
 
 def real_fetch(url, and_cache=True):
 #    print('Downloading', url)
@@ -83,6 +86,9 @@ def create_post(post, and_comments=True, and_notes=True, and_download=True, past
     if not post:
         print('This post is None')
         return None
+    id = int(post['id'])
+    if id in past_posts:
+        return past_posts[id]
     try:
         p = Post.get(Post.id==int(post['id']))
         create = False
@@ -136,32 +142,25 @@ def create_post(post, and_comments=True, and_notes=True, and_download=True, past
         print('Creating notes')
         create_notes(p)
     if and_download:
-        print('Downloading content')
-        download(p)
+        if Content.get_or_none(Content.post == p) is None:
+            print('Downloading content')
+            download(p)
     return p
 
 def download_file(url):
     local_filename = url.split('/')[-1]
-    prefix = local_filename[:2]+'/'+local_filename[:4]
-    local_filename = prefix + '/' + local_filename
-    size = 0
     try:
-        os.makedirs(IMAGE_DIR+prefix+'/')
-    except FileExistsError:
+        return local_filename, len(File.get_file_content(local_filename))
+    except File.DoesNotExist:
         pass
-    with requests.get(url, stream=True) as r:
+    with requests.get(url) as r:
         try:
             r.raise_for_status()
         except:
             traceback.print_exc()
             return
-        with open(IMAGE_DIR+local_filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192): 
-                #if chunk: 
-                f.write(chunk)
-                size += len(chunk)
-    
-    return local_filename, size
+        File.set_file_content(local_filename, r.content)
+    return local_filename, len(r.content)
 
 def download(p):
     print('Downloading content for post', p.id)
@@ -169,7 +168,7 @@ def download(p):
     content = Content()
     content.post = p
     content.path = rel_path
-    content.current_size = content.original_size = size
+    content.current_length = content.original_length = size
     save(content, True)
 
 def create_comments(post):
@@ -194,8 +193,9 @@ def create_comments(post):
             try:
                 xml_comment = [i for i in post_xml if i['id']==str(c_id)][0]
             except IndexError:
-                # There are some anomalous posts (such as #6 on rule34.xxx) where the API returns no comments even though there are comments in the web interface. We'll ignore these comments.
+                # There are some anomalous posts (such as #6 on rule34.xxx) where the API returns no comments even though there are comments in the web interface. We'll log these comments in a separate table.
                 print('Weird comments on post #', post.id)
+                WeirdComment.create(post_id=post.id)
                 return None
             try:
                 c = Comment.get(Comment.id == c_id)
@@ -258,7 +258,7 @@ def download_single(post_row, content=True):
                 dp.save()
             except:
                 pass
-    INTO_DB.put((None, None, accept))
+    save(None, None, accept)
 
 if __name__ == '__main__':
     import concurrent.futures
@@ -275,8 +275,8 @@ if __name__ == '__main__':
     def dl():
         while 1:
             try:
-                if random.randint(1, 20)==1:
-                     post_row = QueuedPost.select().get()
+                if random.randint(1, 1)==1:
+                     post_row = QueuedPost.select().order_by(-QueuedPost.id).get()
                 else:
                     post_row = QueuedPost.select().where(QueuedPost.id >= random.choice(range(1, QueuedPost.select(fn.Max(QueuedPost.id)).scalar()))).get()
             except:
@@ -285,8 +285,9 @@ if __name__ == '__main__':
                 return
             download_single(post_row)
 
-    for i in range(2):
-        threading.Thread(target=dl).start()
-    for i in range(6):
-        threading.Thread(target=put_into_db).start()
-    put_into_db()
+#    for i in range(2):
+#        threading.Thread(target=dl).start()
+#    for i in range(6):
+#        threading.Thread(target=put_into_db).start()
+#    put_into_db()
+    dl()

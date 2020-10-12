@@ -14,14 +14,18 @@ while 1:
         cursor = conn.cursor()
         print('OPENED', i)
         looped = False
-        for name, data in cursor.execute('select * from file;'):
-            looped = True
-            File.set_file_content(name, data)
-            del_cur = conn.cursor()
-            print('DELETED', name, 'FROM', i)
-            del_cur.execute('delete from file where name=?;', (name,))
-            conn.commit()
-        conn.execute('vacuum')
+        try:
+            for name, data in cursor.execute('select * from file;'):
+                looped = True
+                File.set_file_content(name, data)
+                del_cur = conn.cursor()
+                print('DELETED', name, 'FROM', i)
+                del_cur.execute('delete from file where name=?;', (name,))
+                conn.commit()
+        except: pass
+        try:
+            conn.execute('vacuum')
+        except: pass
         conn.close()
         if not looped:
             print('DB EMPTY, DELETING', i)
