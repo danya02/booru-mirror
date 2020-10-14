@@ -235,5 +235,7 @@ class QueuedPost(MyModel):
 class DownloadedPost(MyModel):
     id = IntegerField(primary_key=True, unique=True)
     when = DateTimeField(default=datetime.datetime.now)
+class WeirdComment(MyModel):
+    post_id=IntegerField()
 
 db.create_tables([AccessLevel, User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification, QueuedPost, DownloadedPost, Thumbnail])
