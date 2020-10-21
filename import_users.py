@@ -5,16 +5,19 @@ import requests
 import traceback
 
 def fetch_user(id):
+    if id is None:
+        return None
     try:
         response = requests.get('https://konachan.net/user.json', params={'id':id}).json()[0]
     except IndexError:
         return
-    user = User(id=id)
+    user = User.get_or_none(User.id==id) or User()
+    user.id = id
     user.username = response['name']
     
     
     try:
-        user.save(True)
+        user.save(force_insert=True)
     except:
         user.save()
     

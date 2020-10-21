@@ -1,7 +1,10 @@
 from database import *
-from download import get_author
+from download_author import get_author
 import requests
+from download_post import get_post
 import datetime
+import queue_ops
+import traceback
 
 
 def download_post_comments(post):
@@ -17,16 +20,17 @@ def get_comment(id, content=None, visited=None):
         c = Comment()
         c.id = id
     c.created_at = datetime.datetime.fromisoformat(content['created_at'][:-1])
-    c.score = content['score']
-    c.post = None # visited.get(content['post_id'])
-    if c.post is None:
+    c.score = content.get('score')
+    c.post = visited.get(content['post_id']) or None
+    if c.post_id is None:
         print('!!! Getting post', content['post_id'], 'without comments! This should not happen normally!')
         c.post = get_post(content['post_id'], visited=visited)
-    c.author = get_author(content['creator'], content['creator_id'])
+    c.author = get_author(content.get('creator'), content['creator_id'])
     c.body = content['body']
     try:
-        c.save()
-    except:
         c.save(force_insert=True)
+    except IntegrityError:
+        c.save()
+    queue_ops.accept_by_id(id, 'comment')
     return c
 

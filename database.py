@@ -3,6 +3,7 @@ import datetime
 from PIL import Image
 import hashlib
 import io
+import os
 Image.MAX_IMAGE_PIXELS = None
 
 SITE = 'konachan.net'
@@ -12,10 +13,64 @@ IMAGE_DIR = '/hugedata/booru/konachan.net/'
 db = MySQLDatabase('konachan', user='booru', password='booru', host='10.0.0.2')
 
 
+content_databases = dict()
+
+def get_content_db(name):
+    database = content_databases.get(name[:2])
+    if database is None:
+        try:
+            os.makedirs(IMAGE_DIR+name[:1]+'/')
+        except FileExistsError:
+            pass
+    database = SqliteDatabase(IMAGE_DIR+name[:1]+'/'+name[:2]+'.db', timeout=300)
+    content_databases[name[:2]] = database
+    return database
+
+class File(Model):
+    name = CharField(unique=True, primary_key=True)
+    content = BlobField()
+
+
+    @staticmethod
+    def get_file_content(name):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            return File.get(File.name==name).content
+
+    @staticmethod
+    def set_file_content(name, data):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            try:
+                filerow = File.get(File.name == name)
+                filerow.content = data
+            except File.DoesNotExist:
+                filerow = File.create(name=name, content=data)
+
+    @staticmethod
+    def delete_file(name):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            return File.delete().where(File.name==name).execute()
+
+
+    @staticmethod
+    def get_length(name):
+        database = get_content_db(name)
+        with database.bind_ctx((File,)):
+            database.create_tables((File,))
+            try:
+                return File.select(fn.length(File.content)).where(File.name == name).scalar()
+            except File.DoesNotExist:
+                return None
+
 import logging
 logger = logging.getLogger('peewee')
 logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 class MyModel(Model):
     class Meta:
@@ -37,6 +92,18 @@ class User(MyModel):
 class TempBlacklistedTags(MyModel):
     user = ForeignKeyField(User)
     content = CharField()
+
+@create_table
+class ForumPost(MyModel):
+    id = IntegerField(primary_key=True, unique=True)
+    title = TextField(null=True)
+    body = TextField()
+    updated_at = DateTimeField()
+    pages = IntegerField() 
+
+    creator = ForeignKeyField(User, backref='forum_posts')
+    parent = ForeignKeyField('self', backref='children', null=True)
+    
 
 @create_table
 class Rating(MyModel):
@@ -68,14 +135,33 @@ class UnavailablePost(MyModel):
 class Post(MyModel):
     id = IntegerField(primary_key=True, unique=True)
 
-    file_url = CharField(unique=True, null=True)
     md5 = CharField(unique=True)
+    file_ext = CharField(index=True, null=True)
     
-    jpeg_url = CharField(unique=True, null=True)
+    @property
+    def file_url(self):
+        if self.file_ext is None:
+            return None
+        return 'https://konachan.net/image/'+self.md5+'/'+str(self.id)+'.'+self.file_ext
+
+    @property
+    def jpeg_url(self):
+        if self.file_ext == 'jpg' or self.file_ext == 'jpeg':
+            return 'https://konachan.net/image/'+self.md5+'/'+str(self.id)+'.'+self.file_ext
+        return 'https://konachan.net/jpeg/'+self.md5+'/'+str(self.id)+'.jpg'
+
+    @property
+    def preview_url(self):
+        return f'https://konachan.net/data/preview/{self.md5[0:2]}/{self.md5[2:4]}/{self.md5}.jpg'
+    
+    @property
+    def sample_url(self):
+        if (self.sample_width, self.sample_height) == (self.width, self.height): return self.jpeg_url
+        return f'https://konachan.net/sample/{self.md5}/1.jpg'
+
     width = IntegerField()
     height = IntegerField()
 
-    sample = CharField(unique=True, null=True)
     sample_width = IntegerField()
     sample_height = IntegerField()
 
@@ -87,7 +173,7 @@ class Post(MyModel):
 
     created_at = DateTimeField()
     score = IntegerField()
-    creator = ForeignKeyField(User)
+    creator = ForeignKeyField(User, null=True)
     rating = ForeignKeyField(Rating)
     status = ForeignKeyField(Status)
     source = CharField()
@@ -103,6 +189,13 @@ class Post(MyModel):
         if content is None:
             return None, None
         return content.get_thumb( (self.preview_width, self.preview_height) )
+
+@create_table
+class DownloadError(MyModel):
+    entity_id = IntegerField(index=True)
+    entity_type = CharField(index=True)
+    reason = CharField(index=True)
+    when = DateTimeField(default=datetime.datetime.now, index=True)
 
 @create_table
 class Content(MyModel):
@@ -156,7 +249,7 @@ class Comment(MyModel):
     post = ForeignKeyField(Post, backref='comments')
     id = IntegerField(primary_key=True, unique=True)
     body = TextField()
-    score = IntegerField()
+    score = IntegerField(null=True)
     created_at = DateTimeField()
     last_updated = DateTimeField(default=datetime.datetime.now)
 
@@ -178,10 +271,22 @@ class Note(MyModel):
     class Meta:
         primary_key = CompositeKey('id', 'version')
 
-class QueuedPost(MyModel):
-    id = IntegerField(primary_key=True, unique=True)
-    
-class DownloadedPost(MyModel):
-    id = IntegerField(primary_key=True, unique=True)
-    when = DateTimeField(default=datetime.datetime.now)
 
+@create_table
+class QueuedDownload(MyModel):
+    entity_id = IntegerField(index=True)
+    entity_type = CharField(index=True)
+    enqueued_when = DateTimeField(default=datetime.datetime.now)
+
+@create_table
+class CompletedDownload(MyModel):
+    entity_id = IntegerField(index=True)
+    entity_type = CharField(index=True)
+    completed_when = DateTimeField(default=datetime.datetime.now)
+
+@create_table
+class FlaggedPost(MyModel):
+    post = ForeignKeyField(Post, backref='flags', unique=True, primary_key=True)
+    reason = CharField(null=True, index=True)
+    created_at = DateTimeField(index=True)
+    first_detected_at = DateTimeField(index=True, default=datetime.datetime.now)

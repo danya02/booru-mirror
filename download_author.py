@@ -4,12 +4,15 @@ import requests
 from import_users import fetch_user
 
 def get_author(name, id, force_download_pic=False):
-    u = User.get_or_none(User.id == id)
+    u = User.get_or_none(User.id == id) or User.get_or_none(User.username == name)
+#    if id is None:
+#        return None
     if u is not None and u.username is not None:
         if u.profile_picture is None or force_download_pic:
             download_author_profpic(u)
         return u
     u = fetch_user(id)
+    u.id = id
     if u is None:
         return None
     if u.profile_picture is None or force_download_pic:
