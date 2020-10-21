@@ -22,7 +22,7 @@ def get_author(name, id, force_download_pic=False):
 get_user = get_author
 
 def download_author_profpic(u):
-    req = requests.get(f'https://konachan.net/data/avatars/{u.id}.jpg')
+    req = requests.get(f'https://' + SITE + '/data/avatars/{u.id}.jpg')
     try:
         req.raise_for_status()
     except:
@@ -35,7 +35,7 @@ def download_author_profpic(u):
 
 
 if __name__ == '__main__':
-    max_id = requests.get('https://konachan.net/user.json').json()[0]['id']
+    max_id = requests.get('https://' + SITE + '/user.json').json()[0]['id']
     for i in range(User.select(fn.Max(User.id)).where(User.profile_picture.is_null(False)).scalar() or 1, max_id):
         print('Fetching user', i)
         get_author(None, i)

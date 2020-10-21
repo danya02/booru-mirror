@@ -17,7 +17,7 @@ def get_post(id, skip_download_if_present=True, and_content=True, and_comments=T
     else:
         p = Post()
         p.id = id
-    r = requests.get('https://konachan.net/post.json', params={'limit':1, 'tags': f'id:{id}'}).json()
+    r = requests.get('https://' + SITE + '/post.json', params={'limit':1, 'tags': f'id:{id}'}).json()
     if len(r)==0:
         return None
     r = r[0]

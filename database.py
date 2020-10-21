@@ -142,22 +142,22 @@ class Post(MyModel):
     def file_url(self):
         if self.file_ext is None:
             return None
-        return 'https://konachan.net/image/'+self.md5+'/'+str(self.id)+'.'+self.file_ext
+        return 'https://' + SITE + '/image/'+self.md5+'/'+str(self.id)+'.'+self.file_ext
 
     @property
     def jpeg_url(self):
         if self.file_ext == 'jpg' or self.file_ext == 'jpeg':
-            return 'https://konachan.net/image/'+self.md5+'/'+str(self.id)+'.'+self.file_ext
-        return 'https://konachan.net/jpeg/'+self.md5+'/'+str(self.id)+'.jpg'
+            return 'https://' + SITE + '/image/'+self.md5+'/'+str(self.id)+'.'+self.file_ext
+        return 'https://' + SITE +'/jpeg/'+self.md5+'/'+str(self.id)+'.jpg'
 
     @property
     def preview_url(self):
-        return f'https://konachan.net/data/preview/{self.md5[0:2]}/{self.md5[2:4]}/{self.md5}.jpg'
+        return f'https://' + SITE + f'/data/preview/{self.md5[0:2]}/{self.md5[2:4]}/{self.md5}.jpg'
     
     @property
     def sample_url(self):
         if (self.sample_width, self.sample_height) == (self.width, self.height): return self.jpeg_url
-        return f'https://konachan.net/sample/{self.md5}/1.jpg'
+        return f'https://' + SITE + f'/sample/{self.md5}/1.jpg'
 
     width = IntegerField()
     height = IntegerField()

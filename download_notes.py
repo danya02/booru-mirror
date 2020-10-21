@@ -7,14 +7,14 @@ import queue_ops
 
 
 def download_post_notes(post):
-    notes = requests.get('https://konachan.net/note.json', params={'post_id': post.id}).json()
+    notes = requests.get('https://' + SITE + '/note.json', params={'post_id': post.id}).json()
     for i in notes:
         get_note(i['id'], content=i, visited={post.id: post})
 
 def get_note(id, content=None, visited=None):
     visited = visited or dict()
     if content is None:
-        content_list = requests.get('https://konachan.net/note/history.json', params={'id': id}).json()
+        content_list = requests.get('https://' + SITE + '/note/history.json', params={'id': id}).json()
     else:
         content_list = [content]
     for content in content_list:
