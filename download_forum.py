@@ -12,7 +12,7 @@ def get_forumpost(id, update_if_exists=False, visited=None):
     fp = ForumPost.get_or_none(ForumPost.id == id)
     if fp and update_if_exists:
         return fp
-    req = requests.get(f'https://konachan.net/forum/show/{id}.json').json()
+    req = requests.get(f'https://' + SITE + '/forum/show/{id}.json').json()
     if req.get('status') == '404':
         return None
     insert = fp is None
@@ -31,6 +31,12 @@ def get_forumpost(id, update_if_exists=False, visited=None):
     return fp
 
 if __name__ == '__main__':
+    latest = requests.get('https://' + SITE + '/forum.json?latest=1').json()
+    target_id = max(latest, key=lambda x: x['id'])['id']
+    start_id = ForumPost.select(fn.Max(ForumPost.id)).scalar()
+    print('Enqueueing', start_id, '-->', target_id)
+    queue_ops.enqueue_many(range(start_id, target_id), 'forum')
+
     while True:
         q = queue_ops.fetch_single('forum')
         get_forumpost(q.entity_id)
