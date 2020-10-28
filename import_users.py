@@ -4,11 +4,16 @@ import json
 import requests
 import traceback
 
+session = requests.session()
+session.proxies = {}
+session.proxies['http'] = 'socks5h://localhost:9050'
+session.proxies['https'] = 'socks5h://localhost:9050'
+
 def fetch_user(id):
     if id is None:
         return None
     try:
-        response = requests.get('https://konachan.net/user.json', params={'id':id}).json()[0]
+        response = session.get('https://' + SITE + '/user.json', params={'id':id}).json()[0]
     except IndexError:
         return
     user = User.get_or_none(User.id==id) or User()

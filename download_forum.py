@@ -4,6 +4,10 @@ import traceback
 from download_author import get_author
 import queue_ops
 
+session = requests.session()
+session.proxies = {}
+session.proxies['http'] = 'socks5h://localhost:9050'
+session.proxies['https'] = 'socks5h://localhost:9050'
 
 def get_forumpost(id, update_if_exists=False, visited=None):
     visited = visited or dict()
@@ -12,7 +16,9 @@ def get_forumpost(id, update_if_exists=False, visited=None):
     fp = ForumPost.get_or_none(ForumPost.id == id)
     if fp and update_if_exists:
         return fp
-    req = requests.get(f'https://konachan.net/forum/show/{id}.json').json()
+    req = session.get(f'https://' + SITE + '/forum/show/{id}.json')
+    print(req.text)
+    req = req.json()
     if req.get('status') == '404':
         return None
     insert = fp is None

@@ -12,9 +12,16 @@ def enqueue_many(values, type):
         QueuedDownload.insert_many(zip(chunk, types, times), fields=[QueuedDownload.entity_id, QueuedDownload.entity_type, QueuedDownload.enqueued_when]).execute()
 
 def fetch_single(type):
-    target_id = random.randint(*QueuedDownload.select(fn.Min(QueuedDownload.entity_id), fn.Max(QueuedDownload.entity_id)).where(QueuedDownload.entity_type == type).scalar(as_tuple=True))
-    target_clause = (QueuedDownload.entity_id >= target_id) if random.random()>0.5 else (QueuedDownload.entity_id <= target_id)
-    answer = QueuedDownload.select().where(QueuedDownload.entity_type == type).where(target_clause).get()
+#    target_id = random.randint(*QueuedDownload.select(fn.Min(QueuedDownload.entity_id), fn.Max(QueuedDownload.entity_id)).where(QueuedDownload.entity_type == type).scalar(as_tuple=True))
+#    target_clause = (QueuedDownload.entity_id >= target_id)
+    if random.randint(1, 100)==1:
+        answer = QueuedDownload.select().where(QueuedDownload.entity_type==type).get()
+        print('Selecting item from beginning:', answer.entity_type, answer.entity_id)
+        return answer
+    count = QueuedDownload.select(fn.Count(QueuedDownload.id)).where(QueuedDownload.entity_type == type).scalar()
+    print('Queue contains', count, type)
+    answer = QueuedDownload.select().where(QueuedDownload.entity_type == type).limit(1).offset(random.randint(0, count))
+    answer = list(answer)[0]
     print('Fetched', type, answer.entity_id, '(', answer.id, ')')
     return answer
 

@@ -6,11 +6,11 @@ import io
 import os
 Image.MAX_IMAGE_PIXELS = None
 
-SITE = 'konachan.net'
-IMAGE_DIR = '/hugedata/booru/konachan.net/'
+SITE = 'yande.re'
+IMAGE_DIR = '/hugedata/booru/yande.re/'
 
 #db = SqliteDatabase(SITE+'.db', timeout=600)
-db = MySQLDatabase('konachan', user='booru', password='booru', host='10.0.0.2')
+db = MySQLDatabase('yandere', user='booru', password='booru', host='10.0.0.2')
 
 
 content_databases = dict()
@@ -70,7 +70,7 @@ class File(Model):
 import logging
 logger = logging.getLogger('peewee')
 logger.addHandler(logging.StreamHandler())
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 class MyModel(Model):
     class Meta:

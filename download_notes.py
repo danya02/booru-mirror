@@ -5,16 +5,20 @@ import datetime
 import traceback
 import queue_ops
 
+session = requests.session()
+session.proxies = {}
+session.proxies['http'] = 'socks5h://localhost:9050'
+session.proxies['https'] = 'socks5h://localhost:9050'
 
 def download_post_notes(post):
-    notes = requests.get('https://' + SITE + '/note.json', params={'post_id': post.id}).json()
+    notes = session.get('https://' + SITE + '/note.json', params={'post_id': post.id}).json()
     for i in notes:
         get_note(i['id'], content=i, visited={post.id: post})
 
 def get_note(id, content=None, visited=None):
     visited = visited or dict()
     if content is None:
-        content_list = requests.get('https://' + SITE + '/note/history.json', params={'id': id}).json()
+        content_list = session.get('https://' + SITE + '/note/history.json', params={'id': id}).json()
     else:
         content_list = [content]
     for content in content_list:

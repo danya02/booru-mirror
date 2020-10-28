@@ -6,15 +6,19 @@ import datetime
 import queue_ops
 import traceback
 
+session = requests.session()
+session.proxies = {}
+session.proxies['http'] = 'socks5h://localhost:9050'
+session.proxies['https'] = 'socks5h://localhost:9050'
 
 def download_post_comments(post):
-    comments = requests.get('https://' + SITE + '/comment.json', params={'post_id': post.id}).json()
+    comments = session.get('https://' + SITE + '/comment.json', params={'post_id': post.id}).json()
     for i in comments:
         get_comment(i['id'], content=i, visited={post.id: post})
 
 def get_comment(id, content=None, visited=None):
     visited = visited or dict()
-    content = content or requests.get('https://' + SITE + '/comment/show.json', params={'id': id})
+    content = content or session.get('https://' + SITE + '/comment/show.json', params={'id': id})
     c = Comment.get_or_none(Comment.id == id)
     if c is None:
         c = Comment()

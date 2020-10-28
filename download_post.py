@@ -5,20 +5,31 @@ import requests
 import traceback
 import queue_ops
 
+session = requests.session()
+session.proxies = {}
+session.proxies['http'] = 'socks5h://localhost:9050'
+session.proxies['https'] = 'socks5h://localhost:9050'
+
 def get_post(id, skip_download_if_present=True, and_content=True, and_comments=True, and_notes=True, visited=None):
+    if id is None:
+        return None
     if visited is None:
         visited = dict()
     elif id in visited:
         return id
     p = Post.get_or_none(Post.id==id)
     if p is not None:
+        print('Post', id, 'exists already')
         if skip_download_if_present:
+            print('Skipping download', id)
             return p
     else:
         p = Post()
         p.id = id
-    r = requests.get('https://' + SITE + '/post.json', params={'limit':1, 'tags': f'id:{id}'}).json()
+    r = session.get('https://' + SITE + '/post.json', params={'limit':1, 'tags': f'id:{id}'}).json()
     if len(r)==0:
+        DownloadError.create(entity_id=id, entity_type='post', reason='Lookup by ID failed')
+        queue_ops.accept_by_id(id, 'post')
         return None
     r = r[0]
     
@@ -47,7 +58,7 @@ def get_post(id, skip_download_if_present=True, and_content=True, and_comments=T
                 break
             continue
         try:
-            request = requests.head(url)
+            request = session.head(url)
             request.raise_for_status()
         except:
             if i=='file_url': # if error on file url, it means post is deleted
@@ -79,7 +90,7 @@ def get_post(id, skip_download_if_present=True, and_content=True, and_comments=T
         PostTag.get_or_create(post=p, tag=tag_row)
 
     if 'flag_detail' in r:
-        fp = FlaggedPost.get_or_none(post=p) or FlaggedPost()
+        fp = FlaggedPost.get_or_none(post=p) or FlaggedPost(post=p)
         fp.reason = r['flag_detail']['reason']
         fp.created_at = datetime.datetime.fromisoformat(r['flag_detail']['created_at'][:-1])
         fp.first_detected_at = fp.first_detected_at or datetime.datetime.now()
@@ -108,7 +119,7 @@ def download_file(url):
         return local_filename, len(File.get_file_content(local_filename))
     except File.DoesNotExist:
         pass
-    with requests.get(url) as r:
+    with session.get(url) as r:
         try:
             r.raise_for_status()
         except:
@@ -137,6 +148,6 @@ def download_post_content(p):
 
 if __name__ == '__main__':
     for i in queue_ops.fetch_many('post'):
-        print('Downloading post', i)
-        get_post(i.id, skip_download_if_present=False)
+        print('Downloading post', i.entity_id)
+        get_post(i.entity_id, skip_download_if_present=False)
 #    for i in Post.select(Post.id).where(Post.file_ext.is_null(True)).iterator():
