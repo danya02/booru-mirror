@@ -73,7 +73,7 @@ class File(Model):
 import logging
 logger = logging.getLogger('peewee')
 logger.addHandler(logging.StreamHandler())
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 class MyModel(Model):
     class Meta:
@@ -99,6 +99,10 @@ class Tag(MyModel):
 
 class Type(MyModel):
     name = CharField(unique=True)
+
+class TagPostCount(MyModel):
+    tag = ForeignKeyField(Tag, primary_key=True)
+    value = IntegerField()
 
 class TagType(MyModel):
     tag = ForeignKeyField(Tag)
@@ -238,4 +242,4 @@ class DownloadedPost(MyModel):
 class WeirdComment(MyModel):
     post_id=IntegerField()
 
-db.create_tables([AccessLevel, User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification, QueuedPost, DownloadedPost, Thumbnail])
+db.create_tables([AccessLevel, User, Rating, Status, Tag, Post, PostTag, Comment, Note, Type, TagType, UnavailablePost, Content, ContentModification, Modification, QueuedPost, DownloadedPost, Thumbnail, TagPostCount])
